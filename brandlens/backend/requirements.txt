@@ -4,10 +4,12 @@
 fastapi
 uvicorn[standard]
 pymongo
+mongomock
 python-dotenv
 python-multipart
 pdfplumber
 python-docx
-google-generativeai
+google-genai
 pyjwt
 pytest
+httpx

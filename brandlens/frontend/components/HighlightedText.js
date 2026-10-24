@@ -1,11 +1,13 @@
 // frontend/components/HighlightedText.js
 // Shows the content text with every flagged part highlighted in its category colour.
-// TODO: split the text by each finding's start/end and wrap flagged parts.
 
 import { CATEGORY_COLORS } from "./FindingCard";
 
 export default function HighlightedText({ text, findings }) {
-  const sorted = [...findings].sort((a, b) => a.start - b.start);
+  // Only findings that know where they are in the text can be highlighted.
+  const sorted = findings
+    .filter((f) => Number.isInteger(f.start) && Number.isInteger(f.end) && f.end > f.start)
+    .sort((a, b) => a.start - b.start);
   const parts = [];
   let pos = 0;
 
@@ -21,7 +23,7 @@ export default function HighlightedText({ text, findings }) {
     <div style={{ whiteSpace: "pre-wrap", lineHeight: 1.7 }}>
       {parts.map((p, i) => {
         if (!p.finding) return <span key={i}>{p.text}</span>;
-        const c = CATEGORY_COLORS[p.finding.category];
+        const c = CATEGORY_COLORS[p.finding.category] || CATEGORY_COLORS.tone;
         const resolved = p.finding.status !== "pending";
         return (
           <mark

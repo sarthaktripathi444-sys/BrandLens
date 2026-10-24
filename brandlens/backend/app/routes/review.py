@@ -1,3 +1,131 @@
 # review.py
-# Endpoints that run the AI check, accept or reject each fix, and record the reviewer's decision.
-# TODO: POST /review/{id}/run, GET /review/{id}, PATCH finding status, POST /review/{id}/decision.
+# The review workflow. Every URL uses the CONTENT id (one content item has one current review).
+#
+#   POST  /review/{id}/run                    creator   run the AI review (again, if wanted)
+#   GET   /review/{id}                        anyone    read the review
+#   PATCH /review/{id}/findings/{finding_id}  creator   accept or reject one suggested fix
+#   POST  /review/{id}/send                   creator   send to the reviewer (all issues decided)
+#   POST  /review/{id}/decision               reviewer  approve, or request changes with a comment
+
+from typing import Optional
+
+from fastapi import APIRouter, Depends, HTTPException
+
+from app.database import contents, reviews, rulebooks
+from app.routes.auth import get_current_user, require_role
+from app.schemas.review import DecisionIn, FindingStatusIn, ReviewOut, RunReviewIn
+from app.services import review_service as svc
+
+router = APIRouter(prefix="/review", tags=["review"])
+
+
+def _get_content(content_id):
+    content = contents.find_one({"id": content_id}, {"_id": 0})
+    if not content:
+        raise HTTPException(status_code=404, detail="Content not found.")
+    return content
+
+
+def _get_review(content_id):
+    review = reviews.find_one({"content_id": content_id}, {"_id": 0})
+    if not review:
+        raise HTTPException(status_code=404, detail="This content has not been reviewed yet.")
+    return review
+
+
+def _response(content, review):
+    """Combine the content and its review into the one object the frontend pages use."""
+    return {
+        "content_id": content["id"],
+        "title": content["title"],
+        "type": content["type"],
+        "text": content["text"],
+        "revised_text": svc.revised_text(content["text"], review["findings"]),
+        "score": content.get("score"),
+        "status": content["status"],
+        "findings": review["findings"],
+        "comment": review.get("comment"),
+        "reviewed_by": review.get("reviewed_by"),
+    }
+
+
+@router.post("/{content_id}/run", response_model=ReviewOut)
+def run_review(
+    content_id: str,
+    body: Optional[RunReviewIn] = None,
+    user=Depends(require_role("creator")),
+):
+    content = _get_content(content_id)
+    svc.check_can_rerun(content)
+
+    rulebook = rulebooks.find_one({"active": True}, {"_id": 0})
+    if not rulebook:
+        raise svc.WorkflowError("There is no active rule book yet. Ask a Brand Manager to upload one first.")
+
+    text = content["text"]
+    previous = reviews.find_one({"content_id": content_id}, {"_id": 0})
+    if body and body.apply_accepted and previous:
+        text = svc.revised_text(text, previous["findings"])  # keep the accepted fixes, then check again
+
+    findings, score = svc.run_checks(text, rulebook)
+    stamp = svc.now()
+
+    contents.update_one(
+        {"id": content_id},
+        {"$set": {"text": text, "status": "reviewed", "score": score, "updated_at": stamp}},
+    )
+    review = {"content_id": content_id, "findings": findings, "comment": None, "reviewed_by": None, "created_at": stamp}
+    reviews.replace_one({"content_id": content_id}, dict(review), upsert=True)
+
+    return _response(_get_content(content_id), review)
+
+
+@router.get("/{content_id}", response_model=ReviewOut)
+def read_review(content_id: str, user=Depends(get_current_user)):
+    return _response(_get_content(content_id), _get_review(content_id))
+
+
+@router.patch("/{content_id}/findings/{finding_id}", response_model=ReviewOut)
+def update_finding(
+    content_id: str,
+    finding_id: str,
+    body: FindingStatusIn,
+    user=Depends(require_role("creator")),
+):
+    content = _get_content(content_id)
+    review = _get_review(content_id)
+    svc.check_can_edit_review(content)
+
+    svc.set_finding_status(review, finding_id, body.status)
+    reviews.update_one({"content_id": content_id}, {"$set": {"findings": review["findings"]}})
+    return _response(content, review)
+
+
+@router.post("/{content_id}/send", response_model=ReviewOut)
+def send_to_reviewer(content_id: str, user=Depends(require_role("creator"))):
+    content = _get_content(content_id)
+    review = _get_review(content_id)
+    svc.check_can_send(content, review)
+
+    contents.update_one({"id": content_id}, {"$set": {"status": "pending_review", "updated_at": svc.now()}})
+    return _response(_get_content(content_id), review)
+
+
+@router.post("/{content_id}/decision", response_model=ReviewOut)
+def decide(content_id: str, body: DecisionIn, user=Depends(require_role("reviewer"))):
+    content = _get_content(content_id)
+    review = _get_review(content_id)
+    svc.check_can_decide(content, body.decision, body.comment)
+
+    changes = {"status": body.decision, "updated_at": svc.now()}
+    if body.decision == "approved":
+        changes["final_text"] = svc.revised_text(content["text"], review["findings"])
+    contents.update_one({"id": content_id}, {"$set": changes})
+    reviews.update_one(
+        {"content_id": content_id},
+        {"$set": {"comment": body.comment.strip() or None, "reviewed_by": user["name"]}},
+    )
+
+    review["comment"] = body.comment.strip() or None
+    review["reviewed_by"] = user["name"]
+    return _response(_get_content(content_id), review)

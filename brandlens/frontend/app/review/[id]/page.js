@@ -1,49 +1,136 @@
 // frontend/app/review/[id]/page.js
 // Creator's review screen: highlighted text, list of flags, accept/reject fixes, revised preview, 'Send to Reviewer'.
-// TODO: use HighlightedText + FindingCard and call the review API.
+// The [id] in the address is the CONTENT id.
 
 "use client";
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { getAuth } from "../../../lib/auth";
-import { mockReview } from "../../../lib/mock";
+import { getReview, runReview, sendToReviewer, setFindingStatus } from "../../../lib/api";
 import FindingCard from "../../../components/FindingCard";
 import HighlightedText from "../../../components/HighlightedText";
-
-function buildRevised(text, findings) {
-  let result = text;
-  [...findings]
-    .filter((f) => f.status === "accepted")
-    .sort((a, b) => b.start - a.start)
-    .forEach((f) => {
-      result = result.slice(0, f.start) + f.suggestion + result.slice(f.end);
-    });
-  return result;
-}
+import StatusBadge from "../../../components/StatusBadge";
 
 export default function ReviewPage() {
   const router = useRouter();
-  const [findings, setFindings] = useState(mockReview.findings);
+  const { id } = useParams();
+  const [auth, setAuth] = useState(null);
+  const [review, setReview] = useState(null);
+  const [notReviewed, setNotReviewed] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
 
+  // Check the login, then load the review from the backend.
   useEffect(() => {
-    if (!getAuth()) router.replace("/login");
-  }, [router]);
+    const a = getAuth();
+    if (!a) {
+      router.replace("/login");
+      return;
+    }
+    setAuth(a);
 
-  function setStatus(id, status) {
-    setFindings((fs) => fs.map((f) => (f.id === id ? { ...f, status } : f)));
+    getReview(id)
+      .then(setReview)
+      .catch((e) => {
+        if (e.status === 404) setNotReviewed(true);
+        else setError(e.message);
+      })
+      .finally(() => setLoading(false));
+  }, [id, router]);
+
+  // Runs the checks (or runs them again; applyAccepted keeps the fixes already accepted).
+  async function run(applyAccepted) {
+    setError("");
+    setBusy(true);
+    try {
+      setReview(await runReview(id, applyAccepted));
+      setNotReviewed(false);
+    } catch (e) {
+      setError(e.message);
+    }
+    setBusy(false);
   }
 
+  // Accept or reject one finding; the backend sends back the updated review.
+  async function decide(findingId, status) {
+    setError("");
+    try {
+      setReview(await setFindingStatus(id, findingId, status));
+    } catch (e) {
+      setError(e.message);
+    }
+  }
+
+  async function send() {
+    setError("");
+    setBusy(true);
+    try {
+      await sendToReviewer(id);
+      router.push("/dashboard");
+    } catch (e) {
+      setError(e.message);
+      setBusy(false);
+    }
+  }
+
+  if (!auth || loading) return <div>Loading...</div>;
+  if (auth.role !== "creator") {
+    return <div className="card">Only creators can open this page. Log in as a Creator.</div>;
+  }
+
+  if (notReviewed || !review) {
+    return (
+      <div>
+        <h2>Brand review</h2>
+        <div className="card">
+          <p>{notReviewed ? "This content has not been reviewed yet." : "Could not load this review."}</p>
+          {error && <div style={{ color: "#c0392b", marginBottom: 10 }}>{error}</div>}
+          {notReviewed && (
+            <button className="btn" onClick={() => run(false)} disabled={busy}>
+              {busy ? "Reviewing..." : "Run Brand Review"}
+            </button>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  const findings = review.findings;
   const pending = findings.filter((f) => f.status === "pending").length;
-  const revised = buildRevised(mockReview.text, findings);
+  const editable = review.status === "reviewed"; // only then may the creator change decisions
+  const accepted = findings.filter((f) => f.status === "accepted").length;
 
   return (
     <div>
-      <h2>{mockReview.title}</h2>
-      <div style={{ color: "#555", marginBottom: 16 }}>{mockReview.type}</div>
+      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+        <h2 style={{ margin: 0 }}>{review.title}</h2>
+        <StatusBadge status={review.status} />
+      </div>
+      <div style={{ color: "#555", margin: "6px 0 16px" }}>{review.type}</div>
+
+      {review.status === "changes_requested" && (
+        <div className="card" style={{ borderLeft: "4px solid #c0392b" }}>
+          <strong>The reviewer requested changes{review.reviewed_by ? ` (${review.reviewed_by})` : ""}:</strong>
+          <p style={{ marginBottom: 12 }}>{review.comment}</p>
+          <button className="btn" onClick={() => run(true)} disabled={busy}>
+            {busy ? "Reviewing..." : "Apply accepted fixes and review again"}
+          </button>
+        </div>
+      )}
+      {review.status === "pending_review" && (
+        <div className="card">This content has been sent to the reviewer and is waiting for a decision.</div>
+      )}
+      {review.status === "approved" && (
+        <div className="card" style={{ borderLeft: "4px solid #065f46" }}>
+          Approved{review.reviewed_by ? ` by ${review.reviewed_by}` : ""}.
+          {review.comment && <> Comment: {review.comment}</>}
+        </div>
+      )}
 
       <div className="card" style={{ display: "flex", alignItems: "center", gap: 24 }}>
         <div>
-          <div style={{ fontSize: 36, fontWeight: 700 }}>{mockReview.score}/100</div>
+          <div style={{ fontSize: 36, fontWeight: 700 }}>{review.score}/100</div>
           <div>Brand score</div>
         </div>
         <div>
@@ -57,28 +144,29 @@ export default function ReviewPage() {
       </div>
 
       <h3>Your content</h3>
-      <div className="card"><HighlightedText text={mockReview.text} findings={findings} /></div>
+      <div className="card"><HighlightedText text={review.text} findings={findings} /></div>
 
       <h3>Issues</h3>
+      {findings.length === 0 && <div className="card">No issues found. This content follows the brand rule book.</div>}
       {findings.map((f) => (
         <FindingCard
           key={f.id}
           finding={f}
-          onAccept={() => setStatus(f.id, "accepted")}
-          onReject={() => setStatus(f.id, "rejected")}
+          onAccept={editable ? () => decide(f.id, "accepted") : undefined}
+          onReject={editable ? () => decide(f.id, "rejected") : undefined}
         />
       ))}
 
-      <h3>Revised version (accepted fixes applied)</h3>
-      <div className="card" style={{ whiteSpace: "pre-wrap", lineHeight: 1.7 }}>{revised}</div>
+      <h3>Revised version ({accepted} accepted fix{accepted === 1 ? "" : "es"} applied)</h3>
+      <div className="card" style={{ whiteSpace: "pre-wrap", lineHeight: 1.7 }}>{review.revised_text}</div>
 
-      <button
-        className="btn"
-        disabled={pending > 0}
-        onClick={() => router.push("/dashboard")}
-      >
-        {pending > 0 ? `Decide ${pending} more issue(s) to continue` : "Send to Reviewer"}
-      </button>
+      {error && <div style={{ color: "#c0392b", marginBottom: 12 }}>{error}</div>}
+
+      {editable && (
+        <button className="btn" disabled={pending > 0 || busy} onClick={send}>
+          {pending > 0 ? `Decide ${pending} more issue(s) to continue` : busy ? "Sending..." : "Send to Reviewer"}
+        </button>
+      )}
     </div>
   );
 }

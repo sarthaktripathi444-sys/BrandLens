@@ -1,12 +1,11 @@
 // frontend/app/rulebook/page.js
 // Manager-only page to upload or paste the rule book JSON and see the active one.
-// TODO: build the form and call the rulebook API.
 
 "use client";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { getAuth } from "../../lib/auth";
-import { mockRulebookData } from "../../lib/mock";
+import { getActiveRulebook, saveRulebook } from "../../lib/api";
 
 function validate(data) {
   if (!data || typeof data !== "object") return "The rule book must be a JSON object.";
@@ -21,15 +20,26 @@ function validate(data) {
 export default function RulebookPage() {
   const router = useRouter();
   const [auth, setAuth] = useState(null);
-  const [active, setActive] = useState(mockRulebookData);
+  const [active, setActive] = useState(null);
+  const [busy, setBusy] = useState(false);
   const [draft, setDraft] = useState("");
   const [error, setError] = useState("");
   const [saved, setSaved] = useState(false);
 
   useEffect(() => {
     const a = getAuth();
-    if (!a) router.replace("/login");
-    else setAuth(a);
+    if (!a) {
+      router.replace("/login");
+      return;
+    }
+    setAuth(a);
+
+    // Load the rule book that is active right now (404 simply means none has been uploaded yet).
+    getActiveRulebook()
+      .then(setActive)
+      .catch((e) => {
+        if (e.status !== 404) setError(e.message);
+      });
   }, [router]);
 
   if (!auth) return <div>Loading...</div>;
@@ -45,7 +55,8 @@ export default function RulebookPage() {
     reader.readAsText(file);
   }
 
-  function handleSave() {
+  // Checks the JSON, then sends it to the backend, which makes it the active rule book.
+  async function handleSave() {
     setSaved(false);
     let data;
     try {
@@ -60,15 +71,26 @@ export default function RulebookPage() {
       return;
     }
     setError("");
-    // Later: POST /rulebook with this data.
-    setActive(data);
-    setSaved(true);
+    setBusy(true);
+    try {
+      setActive(await saveRulebook(data));
+      setSaved(true);
+      setDraft("");
+    } catch (e) {
+      setError(e.message);
+    }
+    setBusy(false);
   }
 
   return (
     <div>
       <h2>Rule Book</h2>
 
+      {!active && (
+        <div className="card">No rule book has been uploaded yet. Upload one below.</div>
+      )}
+
+      {active && (
       <div className="card">
         <h3 style={{ marginTop: 0 }}>Active rule book: {active.company}</h3>
 
@@ -81,7 +103,7 @@ export default function RulebookPage() {
           ))}
         </div>
 
-        {active.approved_terms && (
+        {active.approved_terms && active.approved_terms.length > 0 && (
           <>
             <strong>Approved terms</strong>
             <div style={{ margin: "6px 0 14px" }}>
@@ -98,7 +120,7 @@ export default function RulebookPage() {
         <div style={{ margin: "6px 0 14px", fontSize: 14 }}>
           {active.restricted_terms.map((r) => (
             <div key={r.term} style={{ marginBottom: 4 }}>
-              "{r.term}" use "{r.use}" ({r.reason})
+              "{r.term}" use "{r.use}" {r.reason && <>({r.reason})</>}
             </div>
           ))}
         </div>
@@ -115,6 +137,7 @@ export default function RulebookPage() {
         <strong>Claims policy</strong>
         <div style={{ marginTop: 6, fontSize: 14 }}>{active.claims_policy}</div>
       </div>
+      )}
 
       <div className="card">
         <h3 style={{ marginTop: 0 }}>Upload a new rule book</h3>
@@ -134,8 +157,8 @@ export default function RulebookPage() {
         {error && <div style={{ color: "#c0392b", marginTop: 10 }}>{error}</div>}
         {saved && <div style={{ color: "#065f46", marginTop: 10 }}>Rule book saved and set as active.</div>}
 
-        <button className="btn" style={{ marginTop: 14 }} onClick={handleSave}>
-          Save as active rule book
+        <button className="btn" style={{ marginTop: 14 }} onClick={handleSave} disabled={busy}>
+          {busy ? "Saving..." : "Save as active rule book"}
         </button>
       </div>
     </div>

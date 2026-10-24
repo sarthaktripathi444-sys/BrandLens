@@ -1,11 +1,11 @@
 // frontend/app/login/page.js
 // Login screen: choose a role (creator / manager / reviewer), call the login API, save token and role.
-// TODO: build the form and call login() from lib/api.js.
 
 "use client";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { saveAuth } from "../../lib/auth";
+import { login } from "../../lib/api";
 
 const ROLES = [
   { value: "creator", label: "Creator", desc: "Upload content and fix flagged issues" },
@@ -17,17 +17,27 @@ export default function LoginPage() {
   const router = useRouter();
   const [name, setName] = useState("");
   const [role, setRole] = useState("creator");
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
 
-  function handleLogin() {
-    // Demo login. Later this will call the backend /auth/login.
-    saveAuth("demo-token", role, name || "Demo User");
-    router.push("/dashboard");
+  // Asks the backend for a login token for the chosen role, saves it, then opens the dashboard.
+  async function handleLogin() {
+    setError("");
+    setBusy(true);
+    try {
+      const data = await login(role, name.trim());
+      saveAuth(data.token, data.role, data.name);
+      router.push("/dashboard");
+    } catch (e) {
+      setError(e.message);
+      setBusy(false);
+    }
   }
 
   return (
     <div className="card" style={{ maxWidth: 480, margin: "40px auto" }}>
       <h2 style={{ marginTop: 0 }}>Log in to BrandLens</h2>
-      <p>Choose a role to continue (demo login).</p>
+      <p>Choose a role to continue (demo login, no password).</p>
 
       <label>Your name</label>
       <input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Manya" />
@@ -50,8 +60,10 @@ export default function LoginPage() {
         </div>
       ))}
 
-      <button className="btn" style={{ marginTop: 12, width: "100%" }} onClick={handleLogin}>
-        Log in
+      {error && <div style={{ color: "#c0392b", marginTop: 10 }}>{error}</div>}
+
+      <button className="btn" style={{ marginTop: 12, width: "100%" }} onClick={handleLogin} disabled={busy}>
+        {busy ? "Logging in..." : "Log in"}
       </button>
     </div>
   );

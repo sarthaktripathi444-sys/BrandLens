@@ -1,6 +1,6 @@
 // frontend/components/FindingCard.js
 // Shows one flag: coloured category badge, issue, reason, rule violated, suggested fix, Accept/Reject buttons.
-// TODO: take a finding as a prop and call onAccept / onReject.
+// The buttons are hidden when no onAccept / onReject is given (read-only view).
 
 export const CATEGORY_COLORS = {
   tone: { bg: "#ede9fe", color: "#5b21b6" },
@@ -33,17 +33,20 @@ export default function FindingCard({ finding, onAccept, onReject }) {
       <div style={{ fontSize: 14, marginBottom: 4 }}><strong>Why:</strong> {finding.reason}</div>
       <div style={{ fontSize: 14, marginBottom: 4 }}><strong>Rule:</strong> {finding.rule}</div>
       <div style={{ fontSize: 14, marginBottom: 10 }}>
-        <strong>Suggested fix:</strong> "{finding.suggestion}"
+        <strong>Suggested fix:</strong>{" "}
+        {finding.suggestion ? `"${finding.suggestion}"` : "No automatic rewrite - fix this one by hand."}
       </div>
 
-      <div style={{ display: "flex", gap: 8 }}>
-        <button className="btn" onClick={onAccept} disabled={finding.status === "accepted"}>
-          Accept
-        </button>
-        <button className="btn secondary" onClick={onReject} disabled={finding.status === "rejected"}>
-          Reject
-        </button>
-      </div>
+      {onAccept && onReject && (
+        <div style={{ display: "flex", gap: 8 }}>
+          <button className="btn" onClick={onAccept} disabled={finding.status === "accepted"}>
+            Accept
+          </button>
+          <button className="btn secondary" onClick={onReject} disabled={finding.status === "rejected"}>
+            Reject
+          </button>
+        </div>
+      )}
     </div>
   );
 }

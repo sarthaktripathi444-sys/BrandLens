@@ -1,6 +1,5 @@
 // frontend/components/StatusBadge.js
 // Small coloured label for draft, pending review, approved and changes requested.
-// TODO: map each status to a colour and label.
 
 const STYLES = {
   draft: { label: "Draft", bg: "#e6e8f5", color: "#1f2a5a" },
