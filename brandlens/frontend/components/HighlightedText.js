@@ -2,6 +2,43 @@
 // Shows the content text with every flagged part highlighted in its category colour.
 // TODO: split the text by each finding's start/end and wrap flagged parts.
 
-export default function HighlightedText() {
-  return <div>Highlighted text (TODO)</div>;
+import { CATEGORY_COLORS } from "./FindingCard";
+
+export default function HighlightedText({ text, findings }) {
+  const sorted = [...findings].sort((a, b) => a.start - b.start);
+  const parts = [];
+  let pos = 0;
+
+  sorted.forEach((f) => {
+    if (f.start < pos) return;
+    if (f.start > pos) parts.push({ text: text.slice(pos, f.start) });
+    parts.push({ text: text.slice(f.start, f.end), finding: f });
+    pos = f.end;
+  });
+  if (pos < text.length) parts.push({ text: text.slice(pos) });
+
+  return (
+    <div style={{ whiteSpace: "pre-wrap", lineHeight: 1.7 }}>
+      {parts.map((p, i) => {
+        if (!p.finding) return <span key={i}>{p.text}</span>;
+        const c = CATEGORY_COLORS[p.finding.category];
+        const resolved = p.finding.status !== "pending";
+        return (
+          <mark
+            key={i}
+            title={p.finding.issue}
+            style={{
+              background: resolved ? "#e5e7eb" : c.bg,
+              color: c.color,
+              padding: "1px 3px",
+              borderRadius: 4,
+              textDecoration: p.finding.status === "accepted" ? "line-through" : "none",
+            }}
+          >
+            {p.text}
+          </mark>
+        );
+      })}
+    </div>
+  );
 }

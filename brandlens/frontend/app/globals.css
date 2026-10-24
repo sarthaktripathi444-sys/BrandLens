@@ -1,0 +1,25 @@
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  background: #f5f6fa;
+  color: #1f2430;
+}
+.navbar {
+  display: flex; align-items: center; gap: 24px;
+  padding: 14px 28px; background: #1f2a5a; color: #fff;
+}
+.navbar .logo { font-weight: 700; font-size: 20px; margin-right: auto; color: #fff; text-decoration: none; }
+.navbar a { color: #dfe4ff; text-decoration: none; }
+.navbar a:hover, .navbar a.active { color: #fff; text-decoration: underline; }
+.navbar .role { font-size: 12px; background: #3b4a9c; padding: 3px 10px; border-radius: 999px; }
+.navbar button { background: transparent; color: #fff; border: 1px solid #8f9be0; padding: 6px 12px; border-radius: 6px; cursor: pointer; }
+.container { max-width: 960px; margin: 28px auto; padding: 0 20px; }
+.card { background: #fff; border-radius: 10px; padding: 20px; margin-bottom: 16px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); }
+.btn { background: #3b4a9c; color: #fff; border: none; padding: 10px 18px; border-radius: 8px; cursor: pointer; font-size: 15px; }
+.btn:hover { background: #2d3a7d; }
+.btn.secondary { background: #e6e8f5; color: #1f2a5a; }
+.btn.danger { background: #c0392b; }
+.badge { display: inline-block; padding: 3px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; }
+input, textarea, select { width: 100%; padding: 10px; border: 1px solid #c8cce0; border-radius: 8px; font: inherit; }
+label { display: block; font-weight: 600; margin: 12px 0 6px; }
