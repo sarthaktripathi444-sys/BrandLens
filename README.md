@@ -115,6 +115,8 @@ brandlens/
 ```
 
 ---
+# BrandLens
+🌐 **Live Demo**: [https://brandlens-xxxx.vercel.app](https://brandlens-xxxx.vercel.app)
 
 ## How to Run Locally
 
