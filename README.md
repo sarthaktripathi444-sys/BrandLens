@@ -117,6 +117,7 @@ brandlens/
 ---
 # BrandLens
 🌐 **Live Demo**: (https://brand-lens-nine.vercel.app)]
+If you are opening it first Time it may take 6o seconds to open.
 
 ## How to Run Locally
 
