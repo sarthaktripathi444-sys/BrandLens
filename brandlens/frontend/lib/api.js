@@ -5,7 +5,7 @@
 
 import { getAuth, clearAuth } from "./auth";
 
-const BASE = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000").replace(/\/$/, "");
+let BASE = (process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000").replace(/\/$/, "");
 
 // The backend explains problems in "detail". This turns it into one readable sentence.
 function readableError(detail, status) {
@@ -34,7 +34,21 @@ async function request(path, options = {}) {
   try {
     response = await fetch(BASE + path, { ...options, headers });
   } catch {
-    throw new Error(`Cannot reach the backend at ${BASE}. Is it running?`);
+    // If connecting to 127.0.0.1 or localhost fails, try the alternative loopback address
+    let alternate = null;
+    if (BASE.includes("localhost")) alternate = BASE.replace("localhost", "127.0.0.1");
+    else if (BASE.includes("127.0.0.1")) alternate = BASE.replace("127.0.0.1", "localhost");
+
+    if (alternate) {
+      try {
+        response = await fetch(alternate + path, { ...options, headers });
+        BASE = alternate; // stick with the working address
+      } catch {
+        throw new Error(`Cannot reach the backend at ${BASE}. Make sure the FastAPI server is running on port 8000.`);
+      }
+    } else {
+      throw new Error(`Cannot reach the backend at ${BASE}. Is it running?`);
+    }
   }
 
   // Expired or missing login: forget it and go to the login page.
