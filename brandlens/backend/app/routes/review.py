@@ -20,9 +20,21 @@ router = APIRouter(prefix="/review", tags=["review"])
 
 
 def _get_content(content_id):
-    content = contents.find_one({"id": content_id}, {"_id": 0})
+    content = contents.find_one({"id": content_id})
+    if not content:
+        from bson import ObjectId
+        try:
+            content = contents.find_one({"_id": ObjectId(content_id)})
+        except Exception:
+            content = None
     if not content:
         raise HTTPException(status_code=404, detail="Content not found.")
+    if not content.get("id") and "_id" in content:
+        content["id"] = str(content["_id"])
+    if "type" not in content:
+        content["type"] = content.get("content_type", "Blog")
+    if "_id" in content:
+        del content["_id"]
     return content
 
 

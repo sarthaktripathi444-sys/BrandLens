@@ -54,6 +54,16 @@ async def workflow_error_handler(request: Request, error: WorkflowError):
     return JSONResponse(status_code=error.status, content={"detail": error.message})
 
 
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request: Request, exc: Exception):
+    origin = request.headers.get("origin") or "*"
+    return JSONResponse(
+        status_code=500,
+        content={"detail": f"Server Error: {str(exc)}"},
+        headers={"Access-Control-Allow-Origin": origin},
+    )
+
+
 @app.get("/health")
 def health():
     return {"status": "ok"}

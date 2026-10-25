@@ -54,15 +54,34 @@ async def extract_file_text(file: UploadFile = File(...), user=Depends(require_r
     return {"filename": file.filename or "", "text": text}
 
 
+def _normalize(doc):
+    if not doc:
+        return doc
+    if not doc.get("id") and "_id" in doc:
+        doc["id"] = str(doc["_id"])
+    if "type" not in doc:
+        doc["type"] = doc.get("content_type", "Blog")
+    if "_id" in doc:
+        del doc["_id"]
+    return doc
+
+
 @router.get("", response_model=List[ContentOut])
 def list_content(user=Depends(get_current_user)):
     """All content, newest first."""
-    return list(contents.find({}, {"_id": 0}).sort("created_at", -1))
+    raw = list(contents.find({}).sort("created_at", -1))
+    return [_normalize(d) for d in raw]
 
 
 @router.get("/{content_id}", response_model=ContentOut)
 def get_content(content_id: str, user=Depends(get_current_user)):
-    doc = contents.find_one({"id": content_id}, {"_id": 0})
+    doc = contents.find_one({"id": content_id})
+    if not doc:
+        from bson import ObjectId
+        try:
+            doc = contents.find_one({"_id": ObjectId(content_id)})
+        except Exception:
+            doc = None
     if not doc:
         raise HTTPException(status_code=404, detail="Content not found.")
-    return doc
+    return _normalize(doc)
