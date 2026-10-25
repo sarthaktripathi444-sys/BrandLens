@@ -45,10 +45,8 @@ npm run dev
 Open http://localhost:3000
 
 ## Team
-- [Member 1 name] - backend and AI checks
-- [Member 2 name] - frontend and workflow screens
-
-Built for the CODEAXIS Hackathon.
+- **Manya Saxena** — Frontend & Product Design
+- **Sarthak Tripathi** — Backend Developer & AI Integration
 
 ## Run it on your computer
 
