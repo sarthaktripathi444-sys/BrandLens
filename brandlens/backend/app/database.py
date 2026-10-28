@@ -38,7 +38,7 @@ database = client[DB_NAME]
 rulebooks = database["rulebooks"]  # every uploaded rule book; exactly one has active=True
 contents = database["contents"]    # submitted content + its status and score
 reviews = database["reviews"]      # the AI findings for a piece of content
-
+audit_events = database["audit_events"]  # append-only log of everything that happens to a piece of content
 
 def close_database():
     """Called when the server shuts down."""

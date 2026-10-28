@@ -66,3 +66,21 @@ def test_full_workflow():
     assert client.post(f"/review/{cid}/decision", json={"decision": "approved"}, headers=creator).status_code == 403
     done = client.post(f"/review/{cid}/decision", json={"decision": "approved"}, headers=reviewer)
     assert done.status_code == 200 and done.json()["status"] == "approved"
+
+def test_rulebook_keeps_the_new_fields_and_gets_a_version():
+    manager = login("manager")
+    rulebook = json.loads((SAMPLES / "rulebook_sample.json").read_text(encoding="utf-8"))
+    rulebook["approved_messaging"] = [{"text": "Built for growing retailers", "context": "product pages"}]
+    rulebook["channel_rules"] = {"Ad": {"max_chars": 120, "required_disclaimer": "Terms apply."}}
+    saved = client.post("/rulebook", json=rulebook, headers=manager)
+    assert saved.status_code == 200
+    active = client.get("/rulebook/active", headers=manager).json()
+    assert active["approved_messaging"][0]["text"] == "Built for growing retailers"
+    assert active["channel_rules"]["Ad"]["max_chars"] == 120
+    assert "rulebook_id" in active and "version" in active
+
+
+def test_ad_is_an_accepted_content_type():
+    creator = login("creator")
+    reply = client.post("/content", json={"title": "Ad", "type": "Ad", "text": "Buy now."}, headers=creator)
+    assert reply.status_code == 201 and reply.json()["type"] == "Ad"

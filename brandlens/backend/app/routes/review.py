@@ -79,7 +79,7 @@ def run_review(
     if body and body.apply_accepted and previous:
         text = svc.revised_text(text, previous["findings"])  # keep the accepted fixes, then check again
 
-    findings, score = svc.run_checks(text, rulebook)
+        findings, score, meta = svc.run_checks(text, rulebook, content["type"])
     stamp = svc.now()
 
     contents.update_one(

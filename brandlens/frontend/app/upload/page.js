@@ -7,8 +7,7 @@ import { useRouter } from "next/navigation";
 import { getAuth } from "../../lib/auth";
 import { createContent, extractFile, runReview } from "../../lib/api";
 
-const TYPES = ["Blog", "Email", "Social Post", "Landing Page", "Press Release"];
-
+const TYPES = ["Blog", "Email", "Social Post", "Landing Page", "Press Release", "Ad"];
 export default function UploadPage() {
   const router = useRouter();
   const [title, setTitle] = useState("");

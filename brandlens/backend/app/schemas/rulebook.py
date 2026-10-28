@@ -1,21 +1,34 @@
-# rulebook.py
-# Describes the shape of the brand rule book JSON that the Brand Manager uploads.
-
-from typing import List, Optional, Union
-
+from typing import Dict, List, Optional, Union
 from pydantic import BaseModel
 
 
 class RestrictedTerm(BaseModel):
-    term: str          # the word to avoid, e.g. "user"
-    use: str           # the word to use instead, e.g. "customer"
-    reason: str = ""   # why, shown to the creator
+    term: str
+    use: str
+    reason: str = ""
+    source_quote: str = ""          # NEW: where the extractor found it (optional)
 
 
 class Fact(BaseModel):
-    label: str                  # e.g. "active customers"
-    aliases: List[str] = []     # other words the content may use, e.g. ["customers", "clients", "users"]
-    value: Union[int, float, str]  # the true value, e.g. 14000 or 2019
+    label: str
+    aliases: List[str] = []
+    value: Union[int, float, str]
+    source_quote: str = ""          # NEW
+
+
+class ApprovedMessage(BaseModel):   # NEW: a line the brand likes to use
+    text: str
+    context: str = ""
+    source_quote: str = ""
+
+
+class ChannelRule(BaseModel):       # NEW: extra rules for one channel
+    tone_notes: str = ""
+    max_chars: Optional[int] = None
+    max_subject_chars: Optional[int] = None   # emails
+    allow_exclamation: bool = True
+    max_hashtags: Optional[int] = None
+    required_disclaimer: str = ""
 
 
 class Rulebook(BaseModel):
@@ -25,8 +38,11 @@ class Rulebook(BaseModel):
     restricted_terms: List[RestrictedTerm] = []
     facts: List[Fact] = []
     claims_policy: str = ""
+    approved_messaging: List[ApprovedMessage] = []        # NEW
+    channel_rules: Dict[str, ChannelRule] = {}            # NEW: {"Email": {...}, "Ad": {...}}
 
 
 class RulebookOut(Rulebook):
-    # Extra field added when the rule book is read back.
     updated: Optional[str] = None
+    rulebook_id: str = ""     # NEW: set by the server on save (Person A)
+    version: int = 0          # NEW: 1, 2, 3... on each save (Person A)

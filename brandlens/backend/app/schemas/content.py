@@ -16,7 +16,7 @@ class ContentCreate(BaseModel):
 class ContentOut(BaseModel):
     id: str = ""
     title: str = ""
-    type: str = "Blog"
+    type: str = "Blog"                      # Blog, Email, Social Post, Landing Page, Press Release, Ad
     text: str = ""
     status: str = "draft"                    # draft, reviewed, pending_review, approved, changes_requested
     score: Optional[int] = None              # brand score 0-100, empty until reviewed

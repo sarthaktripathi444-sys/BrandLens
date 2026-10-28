@@ -13,3 +13,5 @@ google-genai
 pyjwt
 pytest
 httpx
+beautifulsoup4
+reportlab

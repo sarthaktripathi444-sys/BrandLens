@@ -19,9 +19,9 @@ function readableError(detail, status) {
   return `Request failed (status ${status})`;
 }
 
-// Sends one request, adds the login token, and returns the JSON answer.
+// Sends one request, adds the login token, and returns the raw Response (already checked for errors).
 // Throws an Error with a friendly message when something goes wrong.
-async function request(path, options = {}) {
+async function call(path, options = {}) {
   const headers = { ...(options.headers || {}) };
   // Files are sent as FormData, which sets its own content type; everything else is JSON.
   if (options.body && !(options.body instanceof FormData)) {
@@ -68,8 +68,15 @@ async function request(path, options = {}) {
     error.status = response.status;
     throw error;
   }
-  return response.json();
+    return response;
 }
+
+// Most endpoints answer with JSON.
+const request = async (path, options) => (await call(path, options)).json();
+// Used for file downloads (the PDF report): same login + error handling, but returns a Blob.
+const requestBlob = async (path, options) => (await call(path, options)).blob();
+
+const send = (method, body) => ({ method, body: JSON.stringify(body) });
 
 const send = (method, body) => ({ method, body: JSON.stringify(body) });
 
@@ -79,6 +86,14 @@ export const login = (role, name) => request("/auth/login", send("POST", { role,
 // ---- Rule book ----
 export const getActiveRulebook = () => request("/rulebook/active");
 export const saveRulebook = (rulebook) => request("/rulebook", send("POST", rulebook));
+// Feature 1: draft a rule book from a PDF/DOCX file OR a web page address. Nothing is saved.
+// Returns { draft, warnings, source }.
+export const extractRulebook = ({ file, url } = {}) => {
+  const form = new FormData();
+  if (file) form.append("file", file);
+  if (url) form.append("url", url);
+  return request("/rulebook/extract", { method: "POST", body: form });
+};
 
 // ---- Content ----
 export const listContent = () => request("/content");
@@ -94,8 +109,31 @@ export const extractFile = (file) => {
 export const runReview = (id, applyAccepted = false) =>
   request(`/review/${id}/run`, send("POST", { apply_accepted: applyAccepted }));
 export const getReview = (id) => request(`/review/${id}`);
-export const setFindingStatus = (id, findingId, status) =>
-  request(`/review/${id}/findings/${findingId}`, send("PATCH", { status }));
+// `replacement` is optional: the wording the creator picked (one of the finding's suggestion / alternatives).
+export const setFindingStatus = (id, findingId, status, replacement) =>
+  request(
+    `/review/${id}/findings/${findingId}`,
+    send("PATCH", replacement ? { status, replacement } : { status })
+  );
+// Feature 2: ask for more compliant rewrites of one finding. Returns { alternatives: [...] }.
+export const getAlternatives = (id, findingId) =>
+  request(`/review/${id}/findings/${findingId}/alternatives`, { method: "POST" });
 export const sendToReviewer = (id) => request(`/review/${id}/send`, { method: "POST" });
 export const submitDecision = (id, decision, comment) =>
   request(`/review/${id}/decision`, send("POST", { decision, comment: comment || "" }));
+// ---- Audit trail & certification report (Feature 3) ----
+// Returns { events: [...], chain_valid: true/false }.
+export const getAudit = (id) => request(`/audit/${id}`);
+// Downloads the PDF certificate. A plain <a href> cannot send the login token, so we fetch it
+// as a Blob (with the token), then click a temporary link to save it.
+export const downloadReport = async (id) => {
+  const blob = await requestBlob(`/audit/${id}/report`);
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `brandlens-certificate-${id}.pdf`;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+};

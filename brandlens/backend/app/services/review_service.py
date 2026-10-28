@@ -3,7 +3,7 @@
 # It works on plain dictionaries (no database, no web code), so it is easy to test.
 
 from datetime import datetime, timezone
-
+from app.services import llm_client # new change
 from app.services.claim_checker import check_claims
 from app.services.fact_checker import check_facts
 from app.services.suggestion_engine import apply_accepted, remove_overlaps
@@ -27,12 +27,13 @@ def now():
     return datetime.now(timezone.utc).isoformat()
 
 
-def _safely(name, check, *args):
-    """Run one checker; if it crashes, report it in the server log and carry on with the others."""
+def _safely(name, failed, check, *args):
+    """Run one checker; if it crashes, log it, add its name to `failed`, carry on."""
     try:
         return check(*args)
     except Exception as error:
         print(f"[review_service] The {name} check failed and was skipped: {type(error).__name__}: {error}")
+        failed.append(name)
         return []
 
 
@@ -41,20 +42,23 @@ def compute_score(findings):
     return max(0, 100 - sum(PENALTY.get(f["category"], 5) for f in findings))
 
 
-def run_checks(text, rulebook):
-    """Run all four checks on the text. Returns (findings, score)."""
+def run_checks(text, rulebook, content_type="Blog"):
+    """Returns (findings, score, meta). content_type is accepted but unused until Feature 2.
+    meta = {"ai_used": bool, "checks_failed": [names]}"""
+    failed = []
     found = []
-    found += _safely("fact", check_facts, text, rulebook.get("facts", []))
-    found += _safely("claims", check_claims, text, rulebook.get("claims_policy", ""))
-    found += _safely("terminology", check_terminology, text, rulebook.get("restricted_terms", []))
-    found += _safely("tone", check_tone, text, rulebook.get("tone", []))
+    found += _safely("fact", failed, check_facts, text, rulebook.get("facts", []))
+    found += _safely("claims", failed, check_claims, text, rulebook.get("claims_policy", ""))
+    found += _safely("terminology", failed, check_terminology, text, rulebook.get("restricted_terms", []))
+    found += _safely("tone", failed, check_tone, text, rulebook.get("tone", []))
 
     findings = remove_overlaps(found)
     for number, finding in enumerate(findings, start=1):
         finding["id"] = f"f{number}"
         finding["status"] = "pending"
 
-    return findings, compute_score(findings)
+    meta = {"ai_used": llm_client.is_configured(), "checks_failed": failed}
+    return findings, compute_score(findings), meta
 
 
 def revised_text(text, findings):

@@ -49,14 +49,14 @@ def test_wrong_founding_year_gets_a_fact_flag():
 
 
 def test_blog_sample_triggers_every_kind_of_check():
-    findings, score = run_checks(sample("blog_sample.txt"), RULEBOOK)
+    findings, score, _ = run_checks(sample("blog_sample.txt"), RULEBOOK)
     assert {"claim", "fact", "terminology", "tone"} <= categories(findings)
     assert score < 60
 
 
 def test_every_planted_sample_gets_flagged():
     for name in ("blog_sample.txt", "email_sample.txt", "press_release_sample.txt", "social_post_sample.txt"):
-        findings, score = run_checks(sample(name), RULEBOOK)
+        findings, score, _ = run_checks(sample(name), RULEBOOK)
         assert findings, name
         assert score < 100, name
 
@@ -64,7 +64,7 @@ def test_every_planted_sample_gets_flagged():
 def test_findings_never_overlap_and_fixes_do_not_corrupt_text():
     for name in ("blog_sample.txt", "email_sample.txt", "press_release_sample.txt", "social_post_sample.txt"):
         text = sample(name)
-        findings, _ = run_checks(text, RULEBOOK)
+        findings, _, _ = run_checks(text, RULEBOOK)
         spans = sorted((f["start"], f["end"]) for f in findings)
         assert all(a_end <= b_start for (_, a_end), (b_start, _) in zip(spans, spans[1:]))
         for f in findings:
@@ -76,7 +76,7 @@ def test_findings_never_overlap_and_fixes_do_not_corrupt_text():
 
 def test_after_accepting_all_fixes_a_second_review_is_clean_of_facts_and_terms():
     text = sample("email_sample.txt")
-    findings, _ = run_checks(text, RULEBOOK)
+    findings, _, _ = run_checks(text, RULEBOOK)
     for f in findings:
         f["status"] = "accepted"
     again, _ = run_checks(revised_text(text, findings), RULEBOOK)
@@ -84,5 +84,21 @@ def test_after_accepting_all_fixes_a_second_review_is_clean_of_facts_and_terms()
 
 
 def test_sign_off_best_is_not_a_claim():
-    findings, _ = run_checks("Thanks for reading.\n\nBest,\nThe Team", RULEBOOK)
+    findings, _, _ = run_checks("Thanks for reading.\n\nBest,\nThe Team", RULEBOOK)
     assert findings == []
+
+def test_run_checks_returns_meta_and_accepts_a_content_type():
+    findings, score, meta = run_checks("Our users love it.", RULEBOOK, "Ad")
+    assert findings and set(meta) == {"ai_used", "checks_failed"}
+    assert meta["checks_failed"] == []
+
+
+def test_a_crashing_checker_is_reported_in_meta(monkeypatch):
+    import app.services.review_service as svc
+
+    def boom(*args):
+        raise RuntimeError("broken")
+
+    monkeypatch.setattr(svc, "check_tone", boom)
+    _, _, meta = run_checks("Our users love it.", RULEBOOK)
+    assert meta["checks_failed"] == ["tone"]

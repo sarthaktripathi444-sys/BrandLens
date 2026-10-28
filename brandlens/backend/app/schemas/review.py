@@ -17,6 +17,8 @@ class Finding(BaseModel):
     reason: str                   # why it is a problem
     rule: str                     # which brand rule it breaks
     suggestion: str = ""          # replacement wording; empty means "fix by hand"
+    alternatives: List[str] = []       # other compliant rewrites the creator can pick
+    replacement: Optional[str] = None  # the wording the creator actually chose
     status: str = "pending"       # pending, accepted or rejected
     source: str = "rule"          # "rule" (built-in check) or "ai" (Gemini)
 
@@ -36,6 +38,7 @@ class ReviewOut(BaseModel):
 
 class FindingStatusIn(BaseModel):
     status: Literal["pending", "accepted", "rejected"]
+    replacement: Optional[str] = None
 
 
 class RunReviewIn(BaseModel):
