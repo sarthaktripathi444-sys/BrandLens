@@ -69,14 +69,22 @@ def revised_text(text, findings):
     return apply_accepted(text, findings)
 
 
-def set_finding_status(review, finding_id, status):
-    """Accept, reject or reset one finding inside a review document."""
+def set_finding_status(review, finding_id, status, replacement=None):
+    """Accept, reject or reset one finding inside a review document.
+    When accepting, `replacement` may be the wording the creator chose. It must be the
+    suggestion or one of the finding's alternatives."""
     for finding in review["findings"]:
         if finding["id"] == finding_id:
+            if status == "accepted" and replacement:
+                allowed = [finding.get("suggestion", "")] + list(finding.get("alternatives") or [])
+                if replacement not in [a for a in allowed if a]:
+                    raise WorkflowError("The chosen wording must be one of the suggested alternatives.", 400)
+                finding["replacement"] = replacement
+            else:
+                finding["replacement"] = None  # rejected or reset: forget any earlier choice
             finding["status"] = status
             return finding
     raise WorkflowError("That issue does not exist in this review.", 404)
-
 
 def pending_count(review):
     return sum(1 for f in review["findings"] if f["status"] == "pending")
