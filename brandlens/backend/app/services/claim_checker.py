@@ -6,6 +6,7 @@
 import re
 
 from app.services import llm_client
+from app.services.channel_checker import add_alternatives, channel_guidance
 from app.services.suggestion_engine import (
     capitalise_at_sentence_start,
     make_finding,
@@ -86,15 +87,43 @@ RULES = [
         "Superlatives such as best or leading need independent evidence.",
     ),
 ]
+# Extra, stricter rules that only run for Ads: (regex, replacement builder, issue, reason, extra alternatives).
+AD_RULES = [
+    (
+        r"\bwith\s+(?:no|zero)\s+risk(?:\s+at\s+all)?",
+        lambda m: "with less risk",
+        "Risk-free claim",
+        "Ads must not promise that there is no risk.",
+        ["with reduced risk", "with confidence"],
+    ),
+    (
+        r"\brisk[- ]free\b",
+        lambda m: "low-risk",
+        "Risk-free claim",
+        "Ads must not promise that there is no risk.",
+        ["lower-risk", "designed to reduce risk"],
+    ),
+    (
+        r"\b(?:faster|better|cheaper|easier|stronger|smarter)\s+than\s+"
+        r"(?:ever(?:\s+before)?|any\w*|others|the\s+rest|competitors)\b",
+        lambda m: "with confidence",
+        "Unsupported comparison",
+        "Comparisons need evidence, so Ads should not make them.",
+        ["more efficiently", "with ease"],
+    ),
+]
 
 
-def _rule_based(text, claims_policy):
+def _rule_based(text, claims_policy, content_type="Blog"):
     """Run the built-in patterns. Earlier rules win when two matches overlap."""
     rule_text = f"Claims policy: {claims_policy}" if claims_policy else "Claims need supporting evidence"
+    rules = RULES + (AD_RULES if content_type == "Ad" else [])
     taken = []  # spans already used
     findings = []
 
-    for pattern, build, issue, reason in RULES:
+    for rule in rules:
+        pattern, build, issue, reason = rule[:4]
+        extras = rule[4] if len(rule) > 4 else []
         for m in re.finditer(pattern, text, flags=re.IGNORECASE):
             start, end = m.start(), m.end()
             if any(start < t_end and end > t_start for t_start, t_end in taken):
@@ -102,18 +131,23 @@ def _rule_based(text, claims_policy):
             taken.append((start, end))
 
             suggestion = capitalise_at_sentence_start(text, start, build(m))
-            findings.append(
-                make_finding("claim", text[start:end], start, end, issue, reason, rule_text, suggestion)
-            )
+            finding = make_finding("claim", text[start:end], start, end, issue, reason, rule_text, suggestion)
+            findings.append(add_alternatives(finding, extras))
     return findings
 
 
-def _ai_based(text, claims_policy):
+def _ai_based(text, claims_policy, content_type="Blog", channel_rules=None):
     """Ask Gemini for extra claims. Returns [] if the AI is unavailable or answers badly."""
     if not llm_client.is_configured():
         return []
     try:
-        items = llm_client.ask_for_findings("claims_prompt.txt", claims_policy=claims_policy, text=text)
+        items = llm_client.ask_for_findings(
+            "claims_prompt.txt",
+            claims_policy=claims_policy,
+            channel=content_type,
+            channel_guidance=channel_guidance(content_type, channel_rules),
+            text=text,
+        )
     except llm_client.LLMError as error:
         print(f"[claim_checker] AI skipped: {error}")
         return []
@@ -124,22 +158,22 @@ def _ai_based(text, claims_policy):
         start = text.find(quote) if quote else -1
         if start == -1:
             continue  # the AI quoted something that is not in the content; ignore it
-        findings.append(
-            make_finding(
-                "claim",
-                quote,
-                start,
-                start + len(quote),
-                str(item.get("issue") or "Claim needs evidence"),
-                str(item.get("reason") or ""),
-                str(item.get("rule") or claims_policy or "Claims need supporting evidence"),
-                str(item.get("suggestion") or ""),
-                source="ai",
-            )
+        finding = make_finding(
+            "claim",
+            quote,
+            start,
+            start + len(quote),
+            str(item.get("issue") or "Claim needs evidence"),
+            str(item.get("reason") or ""),
+            str(item.get("rule") or claims_policy or "Claims need supporting evidence"),
+            str(item.get("suggestion") or ""),
+            source="ai",
         )
+        extras = item.get("alternatives")
+        findings.append(add_alternatives(finding, extras if isinstance(extras, list) else []))
     return findings
 
 
-def check_claims(text, claims_policy=""):
+def check_claims(text, claims_policy="", content_type="Blog", channel_rules=None):
     """Returns claim findings. Overlaps between the rules and the AI are removed by review_service."""
-    return _rule_based(text, claims_policy) + _ai_based(text, claims_policy)
+    return _rule_based(text, claims_policy, content_type) + _ai_based(text, claims_policy, content_type, channel_rules)
