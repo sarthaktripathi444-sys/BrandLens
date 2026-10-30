@@ -111,6 +111,9 @@ export default function DashboardPage() {
               <button className="btn secondary">Open</button>
             </Link>
           )}
+          <Link href={`/audit/${c.id}`}>
+            <button className="btn secondary" title="View Audit Trail & Certification Report">Audit</button>
+          </Link>
         </div>
       ))}
     </div>

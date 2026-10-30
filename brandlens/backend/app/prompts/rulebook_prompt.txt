@@ -1,0 +1,51 @@
+# rulebook_prompt.txt
+# Instructions sent to the AI for extracting brand rules from guidelines documents or web pages.
+# Lines starting with # are comments and stripped before sending.
+# Placeholder {text} is filled in by rulebook_extractor.py.
+
+You are an expert brand analyst. Analyze the brand guidelines text below and extract the brand rules into a single JSON object.
+Return ONLY valid JSON with no markdown formatting, fences, or commentary.
+
+The JSON object must have this exact structure:
+{
+  "company": "Company Name",
+  "tone": ["word1", "word2"],
+  "approved_terms": ["term1", "term2"],
+  "restricted_terms": [
+    {
+      "term": "word to avoid",
+      "use": "word to use instead, or empty string \"\" if prohibited with no replacement",
+      "reason": "why to avoid it",
+      "source_quote": "exact quote from text"
+    }
+  ],
+  "facts": [
+    {
+      "label": "label such as founded or active customers",
+      "aliases": ["alias1", "alias2"],
+      "value": "factual number or string",
+      "source_quote": "exact quote from text"
+    }
+  ],
+  "claims_policy": "Policy on claims, superlatives, and guarantees if described in guidelines",
+  "approved_messaging": [
+    {
+      "text": "approved tagline, slogan, or key message",
+      "context": "when or where to use it",
+      "source_quote": "exact quote from text"
+    }
+  ]
+}
+
+Extraction rules:
+1. "company": Name of the company/brand. If not mentioned, return "Brand".
+2. "tone": List of adjectives describing the brand's tone of voice (e.g. professional, trustworthy, friendly).
+3. "approved_terms": Preferred terms and vocabulary.
+4. "restricted_terms": Words or phrases discouraged or prohibited. For prohibited words with no replacement, set "use" to "". Every item MUST have an exact "source_quote".
+5. "facts": Ground-truth company facts, stats, metrics, founding year. Every fact MUST have an exact "source_quote".
+6. "claims_policy": Specific policies on claims, superlatives (#1, best), or guarantees.
+7. "approved_messaging": Approved statements, slogans, or messages. Every item MUST have an exact "source_quote".
+8. CRITICAL: "source_quote" MUST be an exact verbatim substring from the provided text below. Never invent or paraphrase source_quote. If an item cannot be backed by a direct quote, do not include it.
+
+Brand Guidelines Text:
+{text}

@@ -46,3 +46,13 @@ class RulebookOut(Rulebook):
     updated: Optional[str] = None
     rulebook_id: str = ""     # NEW: set by the server on save (Person A)
     version: int = 0          # NEW: 1, 2, 3... on each save (Person A)
+
+
+class ExtractIn(BaseModel):
+    url: Optional[str] = None
+
+
+class ExtractOut(BaseModel):
+    draft: Rulebook
+    warnings: List[str] = []
+    source: str = ""
