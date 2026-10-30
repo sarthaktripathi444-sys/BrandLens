@@ -48,5 +48,24 @@
       "value": 2019
     }
   ],
-  "claims_policy": "No unsupported superlatives (best, #1, leading, revolutionary) and no guaranteed results unless backed by evidence."
+  "claims_policy": "No unsupported superlatives (best, #1, leading, revolutionary) and no guaranteed results unless backed by evidence.",
+  "channel_rules": {
+    "Email": {
+      "tone_notes": "Warm and helpful. Short paragraphs. One clear call to action.",
+      "max_subject_chars": 60,
+      "allow_exclamation": false
+    },
+    "Social Post": {
+      "tone_notes": "Friendly and conversational. Keep it light, but never exaggerate.",
+      "max_chars": 280,
+      "max_hashtags": 3,
+      "allow_exclamation": true
+    },
+    "Ad": {
+      "tone_notes": "Short and factual. No superlatives. No guarantees.",
+      "max_chars": 150,
+      "allow_exclamation": false,
+      "required_disclaimer": "Terms apply."
+    }
+  }
 }
