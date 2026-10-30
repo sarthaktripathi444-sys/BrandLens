@@ -29,7 +29,7 @@ USE_MEMORY_DB = _flag("USE_MEMORY_DB")
 # ---- AI (Gemini) ----
 # Never write the key in code. Without a key, tone and claims checks still work using built-in rules.
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
-GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-3.1-flash-lite")
 
 # ---- Login tokens ----
 # CHANGE JWT_SECRET before deploying: anyone who knows it can create a valid login token.

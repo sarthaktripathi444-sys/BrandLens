@@ -68,7 +68,7 @@ async function call(path, options = {}) {
     error.status = response.status;
     throw error;
   }
-    return response;
+  return response;
 }
 
 // Most endpoints answer with JSON.
@@ -96,6 +96,7 @@ export const extractRulebook = ({ file, url } = {}) => {
 
 // ---- Content ----
 export const listContent = () => request("/content");
+export const getContent = (id) => request(`/content/${id}`);
 export const createContent = (title, type, text) => request("/content", send("POST", { title, type, text }));
 // Reads the text out of a .txt / .pdf / .docx file.
 export const extractFile = (file) => {
@@ -120,6 +121,7 @@ export const getAlternatives = (id, findingId) =>
 export const sendToReviewer = (id) => request(`/review/${id}/send`, { method: "POST" });
 export const submitDecision = (id, decision, comment) =>
   request(`/review/${id}/decision`, send("POST", { decision, comment: comment || "" }));
+
 // ---- Audit trail & certification report (Feature 3) ----
 // Returns { events: [...], chain_valid: true/false }.
 export const getAudit = (id) => request(`/audit/${id}`);
