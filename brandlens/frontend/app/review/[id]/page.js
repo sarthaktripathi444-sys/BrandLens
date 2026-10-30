@@ -6,7 +6,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { getAuth } from "../../../lib/auth";
-import { getReview, runReview, sendToReviewer, setFindingStatus } from "../../../lib/api";
+import { getReview, runReview, sendToReviewer, setFindingStatus, getAlternatives } from "../../../lib/api";
 import FindingCard from "../../../components/FindingCard";
 import HighlightedText from "../../../components/HighlightedText";
 import StatusBadge from "../../../components/StatusBadge";
@@ -53,13 +53,22 @@ export default function ReviewPage() {
   }
 
   // Accept or reject one finding; the backend sends back the updated review.
-  async function decide(findingId, status) {
+    // Accept or reject one finding; the backend sends back the updated review.
+  // `replacement` is the rewrite the creator picked (only used when accepting).
+  async function decide(findingId, status, replacement) {
     setError("");
     try {
-      setReview(await setFindingStatus(id, findingId, status));
+      setReview(await setFindingStatus(id, findingId, status, replacement));
     } catch (e) {
       setError(e.message);
     }
+  }
+
+  // Ask the backend for more rewrites of one finding, then reload the review.
+  // Errors are passed up so the FindingCard can show them next to its button.
+  async function moreRewrites(findingId) {
+    await getAlternatives(id, findingId);
+    setReview(await getReview(id));
   }
 
   async function send() {
@@ -107,7 +116,10 @@ export default function ReviewPage() {
         <h2 style={{ margin: 0 }}>{review.title}</h2>
         <StatusBadge status={review.status} />
       </div>
-      <div style={{ color: "#555", margin: "6px 0 16px" }}>{review.type}</div>
+      <div style={{ margin: "6px 0 16px", display: "flex", alignItems: "center", gap: 8, color: "#555" }}>
+        <span>Channel:</span>
+        <span className="badge" style={{ background: "#d1fae5", color: "#065f46" }}>{review.type}</span>
+      </div>
 
       {review.status === "changes_requested" && (
         <div className="card" style={{ borderLeft: "4px solid #c0392b" }}>
@@ -152,8 +164,9 @@ export default function ReviewPage() {
         <FindingCard
           key={f.id}
           finding={f}
-          onAccept={editable ? () => decide(f.id, "accepted") : undefined}
+          onAccept={editable ? (chosen) => decide(f.id, "accepted", chosen) : undefined}
           onReject={editable ? () => decide(f.id, "rejected") : undefined}
+          onMore={editable ? () => moreRewrites(f.id) : undefined}
         />
       ))}
 

@@ -78,7 +78,6 @@ const requestBlob = async (path, options) => (await call(path, options)).blob();
 
 const send = (method, body) => ({ method, body: JSON.stringify(body) });
 
-const send = (method, body) => ({ method, body: JSON.stringify(body) });
 
 // ---- Login ----
 export const login = (role, name) => request("/auth/login", send("POST", { role, name }));
