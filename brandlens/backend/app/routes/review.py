@@ -15,6 +15,7 @@ from app.database import contents, reviews, rulebooks
 from app.routes.auth import get_current_user, require_role
 from app.schemas.review import DecisionIn, FindingStatusIn, ReviewOut, RunReviewIn
 from app.services import review_service as svc
+from app.services.audit_service import hash_text, log_event
 
 router = APIRouter(prefix="/review", tags=["review"])
 
@@ -79,7 +80,7 @@ def run_review(
     if body and body.apply_accepted and previous:
         text = svc.revised_text(text, previous["findings"])  # keep the accepted fixes, then check again
 
-        findings, score, meta = svc.run_checks(text, rulebook, content["type"])
+    findings, score, meta = svc.run_checks(text, rulebook, content["type"])
     stamp = svc.now()
 
     contents.update_one(
@@ -88,6 +89,23 @@ def run_review(
     )
     review = {"content_id": content_id, "findings": findings, "comment": None, "reviewed_by": None, "created_at": stamp}
     reviews.replace_one({"content_id": content_id}, dict(review), upsert=True)
+
+    by_category = {}
+    for finding in findings:
+        category = finding.get("category", "other")
+        by_category[category] = by_category.get(category, 0) + 1
+    log_event(content_id, "review_run", user, {
+        "score": score,
+        "finding_count": len(findings),
+        "findings_by_category": by_category,
+        "rulebook_company": rulebook.get("company"),
+        "rulebook_id": rulebook.get("rulebook_id"),
+        "rulebook_version": rulebook.get("version"),
+        "ai_used": meta["ai_used"],
+        "checks_failed": meta["checks_failed"],
+        "text_hash": hash_text(text),
+        "text_snapshot": text,  # the text is overwritten on re-review, so keep a copy here
+    })
 
     return _response(_get_content(content_id), review)
 
@@ -108,8 +126,24 @@ def update_finding(
     review = _get_review(content_id)
     svc.check_can_edit_review(content)
 
+    finding = next((f for f in review["findings"] if f.get("id") == finding_id), {})
+    before = finding.get("status")
+    flagged_text = finding.get("text")
+    suggestion = finding.get("suggestion")
+    category = finding.get("category")
+
     svc.set_finding_status(review, finding_id, body.status)
     reviews.update_one({"content_id": content_id}, {"$set": {"findings": review["findings"]}})
+
+    log_event(content_id, "finding_decided", user, {
+        "finding_id": finding_id,
+        "category": category,
+        "text": flagged_text,
+        "suggestion": suggestion,
+        "before": before,
+        "after": body.status,
+        "replacement": body.replacement,
+    })
     return _response(content, review)
 
 
@@ -120,6 +154,12 @@ def send_to_reviewer(content_id: str, user=Depends(require_role("creator"))):
     svc.check_can_send(content, review)
 
     contents.update_one({"id": content_id}, {"$set": {"status": "pending_review", "updated_at": svc.now()}})
+
+    statuses = [f.get("status") for f in review["findings"]]
+    log_event(content_id, "sent_to_reviewer", user, {
+        "accepted": statuses.count("accepted"),
+        "rejected": statuses.count("rejected"),
+    })
     return _response(_get_content(content_id), review)
 
 
@@ -140,4 +180,10 @@ def decide(content_id: str, body: DecisionIn, user=Depends(require_role("reviewe
 
     review["comment"] = body.comment.strip() or None
     review["reviewed_by"] = user["name"]
+
+    log_event(content_id, "decision_made", user, {
+        "decision": body.decision,
+        "comment": review["comment"],
+        "final_text_hash": hash_text(changes["final_text"]) if "final_text" in changes else None,
+    })
     return _response(_get_content(content_id), review)
