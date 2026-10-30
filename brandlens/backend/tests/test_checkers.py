@@ -6,9 +6,14 @@
 import json
 from pathlib import Path
 
+from app.services.channel_checker import check_channel
+from app.services.claim_checker import check_claims
 from app.services.fact_checker import check_facts
 from app.services.review_service import run_checks, revised_text
+from app.services.rewrite_service import generate_alternatives
 from app.services.terminology_checker import check_terminology
+from app.services.tone_checker import check_tone
+from app.services.audit_service import log_event, get_trail, verify_chain
 
 SAMPLES = Path(__file__).resolve().parents[2] / "sample_data"
 RULEBOOK = json.loads((SAMPLES / "rulebook_sample.json").read_text(encoding="utf-8"))
@@ -79,13 +84,14 @@ def test_after_accepting_all_fixes_a_second_review_is_clean_of_facts_and_terms()
     findings, _, _ = run_checks(text, RULEBOOK)
     for f in findings:
         f["status"] = "accepted"
-    again, _ = run_checks(revised_text(text, findings), RULEBOOK)
-    assert categories(again) <= {"claim", "tone"} and len(again) == 0
+    again, _, _ = run_checks(revised_text(text, findings), RULEBOOK)
+    assert categories(again) <= {"claim", "tone", "channel"} and len([f for f in again if f["category"] in ("fact", "terminology")]) == 0
 
 
 def test_sign_off_best_is_not_a_claim():
     findings, _, _ = run_checks("Thanks for reading.\n\nBest,\nThe Team", RULEBOOK)
     assert findings == []
+
 
 def test_run_checks_returns_meta_and_accepts_a_content_type():
     findings, score, meta = run_checks("Our users love it.", RULEBOOK, "Ad")
@@ -102,3 +108,65 @@ def test_a_crashing_checker_is_reported_in_meta(monkeypatch):
     monkeypatch.setattr(svc, "check_tone", boom)
     _, _, meta = run_checks("Our users love it.", RULEBOOK)
     assert meta["checks_failed"] == ["tone"]
+
+
+# Feature 2: Channel-aware tests
+def test_channel_checker_flags_excessive_hashtags_on_social():
+    text = "Great product! #one #two #three #four #five #six #seven #eight"
+    findings = check_channel(text, {"Social Post": {"max_hashtags": 3}}, "Social Post")
+    assert any("hashtag limit" in f["issue"].lower() for f in findings)
+
+
+def test_channel_checker_flags_exclamation_on_press_release():
+    text = "Aurora Pantry announces Q3 revenue increase!"
+    findings = check_channel(text, {"Press Release": {"allow_exclamation": False}}, "Press Release")
+    assert any("exclamation" in f["issue"].lower() for f in findings)
+
+
+def test_channel_checker_flags_missing_disclaimer_on_ad():
+    text = "Buy our organic jam today."
+    rule = {"Ad": {"required_disclaimer": "Results may vary. Terms apply."}}
+    findings = check_channel(text, rule, "Ad")
+    assert any("disclaimer" in f["issue"].lower() for f in findings)
+
+
+def test_claim_checker_stricter_for_ads():
+    ad_text = "Get 100% risk-free instant results with our platform."
+    ad_findings = check_claims(ad_text, content_type="Ad")
+    assert any("ad compliance" in f["issue"].lower() or "risk-free" in f["issue"].lower() for f in ad_findings)
+
+
+def test_rewrite_service_filters_uncompliant_alternatives():
+    finding = {
+        "category": "claim",
+        "text": "best in the world",
+        "suggestion": "a trusted choice",
+        "start": 0,
+        "end": 17,
+        "issue": "Unsupported claim",
+        "rule": "Claims need evidence",
+    }
+    rulebook = {
+        "restricted_terms": [{"term": "users", "use": "customers"}],
+        "claims_policy": "No superlatives",
+    }
+    alts = generate_alternatives(finding, "best in the world", rulebook, "Blog")
+    assert len(alts) >= 1
+    assert all(a.lower() != "best in the world" for a in alts)
+
+
+# Feature 3: Audit service tests
+def test_audit_service_logging_and_verification():
+    content_id = "test_audit_c123"
+    ev1 = log_event(content_id, "content_created", {"name": "Alice", "role": "creator"}, {"title": "Test Title"})
+    assert ev1["seq"] == 1
+    assert ev1["prev_hash"] == "0" * 64
+    assert ev1["hash"]
+
+    ev2 = log_event(content_id, "review_run", {"name": "Alice", "role": "creator"}, {"score": 90})
+    assert ev2["seq"] == 2
+    assert ev2["prev_hash"] == ev1["hash"]
+
+    trail = get_trail(content_id)
+    assert len(trail) >= 2
+    assert verify_chain(trail) is True

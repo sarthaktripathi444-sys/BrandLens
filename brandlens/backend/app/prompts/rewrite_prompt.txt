@@ -1,0 +1,21 @@
+# rewrite_prompt.txt
+# Instructions for generating on-demand compliant alternative rewrites for a specific flagged finding.
+# Placeholders {issue}, {reason}, {rule}, {text}, {context}, {channel}, {company} are filled in by rewrite_service.py.
+
+You are an expert brand editor. Provide 3 distinctly phrased, completely compliant alternative rewrites for the flagged text below.
+Brand: {company}
+Target channel: {channel}
+Issue: {issue}
+Reason: {reason}
+Rule to follow: {rule}
+Flagged text: "{text}"
+Surrounding context:
+"{context}"
+
+Requirements:
+1. Provide exactly 3 diverse, professional alternative phrasings that replace the flagged text cleanly in context.
+2. Every alternative MUST strictly adhere to the brand rule and eliminate the flagged issue.
+3. Keep the alternatives natural and appropriate for {channel}.
+
+Return ONLY a JSON list of 3 strings, for example:
+["Alternative 1", "Alternative 2", "Alternative 3"]

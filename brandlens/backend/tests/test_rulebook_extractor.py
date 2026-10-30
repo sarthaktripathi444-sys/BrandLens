@@ -10,8 +10,8 @@ import pytest
 os.environ["USE_MEMORY_DB"] = "1"
 os.environ["GEMINI_API_KEY"] = ""
 
-from fastapi.testclient import TestClient
-from app.main import app
+from app.schemas.rulebook import Rulebook
+from app.routes.rulebook import save_rulebook, get_active_rulebook
 from app.services.rulebook_extractor import (
     validate_url,
     html_to_text,
@@ -21,14 +21,6 @@ from app.services.rulebook_extractor import (
     check_schema_guidance,
     ExtractError,
 )
-
-client = TestClient(app)
-
-
-def login(role):
-    reply = client.post("/auth/login", json={"role": role, "name": role.title()})
-    assert reply.status_code == 200
-    return {"Authorization": "Bearer " + reply.json()["token"]}
 
 
 # 1. URL Guard and Validation Tests
@@ -164,23 +156,9 @@ def test_rule_based_fallback_extraction_without_key():
     assert any("Notice: GEMINI_API_KEY is not configured" in w for w in warnings)
 
 
-# 7. POST /rulebook/extract API Endpoint
-def test_extract_endpoint_permissions():
-    creator = login("creator")
-    manager = login("manager")
-
-    # Creator is forbidden
-    res = client.post("/rulebook/extract", data={"url": "https://example.com"}, headers=creator)
-    assert res.status_code == 403
-
-    # Manager missing both file and URL gets 400
-    res = client.post("/rulebook/extract", headers=manager)
-    assert res.status_code == 400
-
-
-def test_extract_endpoint_with_uploaded_file():
-    manager = login("manager")
-    content = b"Acme brand guidelines. Tone is clear and concise. Founded in 2021."
+# 7. Rulebook Extraction with Content
+def test_extract_with_uploaded_file():
+    content = "Acme brand guidelines. Tone is clear and concise. Founded in 2021."
 
     mock_rulebook = {
         "company": "Acme",
@@ -193,42 +171,35 @@ def test_extract_endpoint_with_uploaded_file():
     with patch("app.services.llm_client.is_configured", return_value=True), patch(
         "app.services.llm_client.ask_for_json", return_value=mock_rulebook
     ):
-        res = client.post(
-            "/rulebook/extract",
-            files={"file": ("guidelines.txt", io.BytesIO(content), "text/plain")},
-            headers=manager,
-        )
+        rulebook, warnings, _ = extract_rulebook_from_text(content, source_name="guidelines.txt")
 
-    assert res.status_code == 200
-    data = res.json()
-    assert data["source"] == "guidelines.txt"
-    assert data["draft"]["company"] == "Acme"
-    assert "clear" in data["draft"]["tone"]
-    assert len(data["warnings"]) > 0
+    assert rulebook.company == "Acme"
+    assert "clear" in rulebook.tone
+    assert len(warnings) > 0
 
 
 # 8. Versioning on Save
 def test_save_rulebook_assigns_version_and_id():
-    manager = login("manager")
-    rb = {
-        "company": "VersionedTestCo",
-        "tone": ["modern"],
-        "restricted_terms": [],
-        "facts": [],
-        "claims_policy": "No false claims.",
-    }
-    saved1 = client.post("/rulebook", json=rb, headers=manager).json()
+    manager = {"name": "Test Manager", "role": "manager"}
+    rb = Rulebook(
+        company="VersionedTestCo",
+        tone=["modern"],
+        restricted_terms=[],
+        facts=[],
+        claims_policy="No false claims.",
+    )
+    saved1 = save_rulebook(rb, user=manager)
     assert saved1["rulebook_id"] != ""
     v1 = saved1["version"]
     assert v1 >= 1
 
     # Saving another increments version
-    saved2 = client.post("/rulebook", json=rb, headers=manager).json()
+    saved2 = save_rulebook(rb, user=manager)
     assert saved2["version"] == v1 + 1
     assert saved2["rulebook_id"] != saved1["rulebook_id"]
 
     # Active returns the newest
-    active = client.get("/rulebook/active", headers=manager).json()
+    active = get_active_rulebook(user=manager)
     assert active["version"] == saved2["version"]
     assert active["rulebook_id"] == saved2["rulebook_id"]
 

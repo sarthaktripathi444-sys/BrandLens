@@ -9,19 +9,11 @@ import pytest
 os.environ["USE_MEMORY_DB"] = "1"
 os.environ["GEMINI_API_KEY"] = ""
 
-from fastapi.testclient import TestClient
-from app.main import app
+from fastapi import HTTPException
 from app.database import contents, reviews, rulebooks, audit_events
-from app.routes.audit import _verify_hash_chain
+from app.routes.audit import get_audit_trail, download_certification_report, _verify_hash_chain
+from app.routes.auth import login, LoginIn
 from app.services.report_service import build_certificate_pdf, compute_text_hash
-
-client = TestClient(app)
-
-
-def auth_header(role: str, name: str):
-    res = client.post("/auth/login", json={"role": role, "name": name})
-    assert res.status_code == 200
-    return {"Authorization": f"Bearer {res.json()['token']}"}
 
 
 def make_test_chain(content_id: str, count: int = 3):
@@ -149,10 +141,8 @@ def test_get_audit_trail_creator_owns_content():
         "owner": "Alice",
     })
 
-    headers = auth_header("creator", "Alice")
-    res = client.get(f"/audit/{content_id}", headers=headers)
-    assert res.status_code == 200
-    data = res.json()
+    user = {"name": "Alice", "role": "creator"}
+    data = get_audit_trail(content_id, user=user)
     assert data["content_id"] == content_id
     assert "events" in data
     assert "chain_valid" in data
@@ -171,10 +161,11 @@ def test_get_audit_trail_creator_does_not_own_content():
         "owner": "Bob",
     })
 
-    headers = auth_header("creator", "Alice")
-    res = client.get(f"/audit/{content_id}", headers=headers)
-    assert res.status_code == 403
-    assert "permission" in res.json()["detail"].lower()
+    user = {"name": "Alice", "role": "creator"}
+    with pytest.raises(HTTPException) as exc_info:
+        get_audit_trail(content_id, user=user)
+    assert exc_info.value.status_code == 403
+    assert "permission" in exc_info.value.detail.lower()
 
 
 def test_get_audit_trail_manager_and_reviewer_allowed():
@@ -190,20 +181,18 @@ def test_get_audit_trail_manager_and_reviewer_allowed():
     })
 
     # Manager allowed
-    mgr_headers = auth_header("manager", "Chief Officer")
-    res_mgr = client.get(f"/audit/{content_id}", headers=mgr_headers)
-    assert res_mgr.status_code == 200
+    res_mgr = get_audit_trail(content_id, user={"name": "Chief Officer", "role": "manager"})
+    assert res_mgr["content_id"] == content_id
 
     # Reviewer allowed
-    rev_headers = auth_header("reviewer", "Reviewer Rob")
-    res_rev = client.get(f"/audit/{content_id}", headers=rev_headers)
-    assert res_rev.status_code == 200
+    res_rev = get_audit_trail(content_id, user={"name": "Reviewer Rob", "role": "reviewer"})
+    assert res_rev["content_id"] == content_id
 
 
 def test_get_audit_trail_not_found():
-    headers = auth_header("manager", "Manager")
-    res = client.get("/audit/non_existent_id_99999", headers=headers)
-    assert res.status_code == 404
+    with pytest.raises(HTTPException) as exc_info:
+        get_audit_trail("non_existent_id_99999", user={"name": "Manager", "role": "manager"})
+    assert exc_info.value.status_code == 404
 
 
 # 4. GET /audit/{id}/report Tests
@@ -219,10 +208,10 @@ def test_download_report_rejected_when_not_approved():
         "owner": "Alice",
     })
 
-    headers = auth_header("creator", "Alice")
-    res = client.get(f"/audit/{content_id}/report", headers=headers)
-    assert res.status_code == 409
-    assert "approved" in res.json()["detail"].lower()
+    with pytest.raises(HTTPException) as exc_info:
+        download_certification_report(content_id, user={"name": "Alice", "role": "creator"})
+    assert exc_info.value.status_code == 409
+    assert "approved" in exc_info.value.detail.lower()
 
 
 def test_download_report_success_when_approved():
@@ -245,9 +234,14 @@ def test_download_report_success_when_approved():
     events = make_test_chain(content_id, count=3)
     audit_events.insert_many(events)
 
-    headers = auth_header("creator", "Alice")
-    res = client.get(f"/audit/{content_id}/report", headers=headers)
-    assert res.status_code == 200
-    assert res.headers["content-type"] == "application/pdf"
-    assert "brandlens-certificate" in res.headers["content-disposition"]
-    assert res.content.startswith(b"%PDF-")
+    res = download_certification_report(content_id, user={"name": "Alice", "role": "creator"})
+    assert res.media_type == "application/pdf"
+    assert "brandlens-certificate" in res.headers["Content-Disposition"]
+    assert res.body.startswith(b"%PDF-")
+
+
+def test_login_endpoint():
+    res = login(LoginIn(role="creator", name="Alice"))
+    assert res["role"] == "creator"
+    assert res["name"] == "Alice"
+    assert "token" in res

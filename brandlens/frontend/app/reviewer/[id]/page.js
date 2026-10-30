@@ -69,8 +69,29 @@ export default function ReviewerPage() {
 
   return (
     <div>
-      <h2>{sub.title}</h2>
-      <div style={{ color: "#555", marginBottom: 16 }}>{sub.type}</div>
+      <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", marginBottom: 12 }}>
+        <h2 style={{ margin: 0 }}>{sub.title}</h2>
+        <span
+          className="badge"
+          style={{
+            background: "#e0e7ff",
+            color: "#3730a3",
+            fontSize: 13,
+            padding: "4px 10px",
+            fontWeight: 600,
+          }}
+        >
+          {sub.type}
+        </span>
+        <StatusBadge status={sub.status} />
+        <Link
+          href={`/audit/${id}`}
+          className="btn secondary"
+          style={{ marginLeft: "auto", fontSize: 13, padding: "6px 12px", textDecoration: "none" }}
+        >
+          View Audit Trail
+        </Link>
+      </div>
 
       <div className="card" style={{ display: "flex", gap: 24, alignItems: "center" }}>
         <div>
@@ -139,7 +160,12 @@ export default function ReviewerPage() {
           {sub.status !== "approved" && sub.status !== "changes_requested" && (
             <p>This content is currently "{sub.status}", so it is not in the review queue.</p>
           )}
-          <Link href="/dashboard"><button className="btn secondary">Back to dashboard</button></Link>
+          <div style={{ display: "flex", gap: 10, marginTop: 12 }}>
+            <Link href="/dashboard"><button className="btn secondary">Back to dashboard</button></Link>
+            {sub.status === "approved" && (
+              <Link href={`/audit/${id}`}><button className="btn">View Certificate & Audit Trail</button></Link>
+            )}
+          </div>
         </div>
       )}
     </div>

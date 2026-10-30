@@ -1,14 +1,22 @@
 # tone_prompt.txt
 # Instructions sent to the AI for tone checking. Lines starting with # are comments: strip them in code before sending.
-# Placeholders {tone} and {text} are filled in by tone_checker.py.
+# Placeholders {tone}, {channel}, {channel_guidance} and {text} are filled in by tone_checker.py.
 
-You are a brand-voice reviewer. Check the content below against the brand tone.
-Flag only sentences that clearly break the tone (for example overly promotional or hype-filled language).
-Return ONLY a JSON list, with no extra text. Each item must have:
-"text" (the exact flagged sentence), "issue", "reason", "rule" and "suggestion" (a rewritten version that keeps the author's meaning).
-If nothing is wrong, return [].
-
+You are a brand-voice reviewer. Check the content below against the brand tone and channel requirements.
+Target channel: {channel}
+Channel guidance: {channel_guidance}
 Brand tone: {tone}
+
+Flag sentences that clearly break the brand tone or channel standards (for example overly promotional hype on press releases, or pressure wording).
+Return ONLY a JSON list, with no extra text. Each item must have:
+- "text" (the exact flagged words or sentence)
+- "issue" (short title of the issue)
+- "reason" (why it violates tone or channel rules)
+- "rule" (the brand rule or channel standard)
+- "suggestion" (recommended compliant rewrite keeping the author's intent)
+- "alternatives" (a list of 2 to 3 distinct compliant alternative rewrites)
+
+If nothing is wrong, return [].
 
 Content:
 {text}

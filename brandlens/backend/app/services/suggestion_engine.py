@@ -6,10 +6,21 @@ import re
 
 # When two findings cover the same words, the one with the LOWER number wins.
 # (Facts and claims are more serious than a word swap, and a word swap is more exact than a tone note.)
-PRIORITY = {"fact": 0, "claim": 1, "terminology": 2, "tone": 3}
+PRIORITY = {"fact": 0, "claim": 1, "terminology": 2, "tone": 3, "channel": 4}
 
 
-def make_finding(category, text, start, end, issue, reason, rule, suggestion="", source="rule"):
+def make_finding(
+    category,
+    text,
+    start,
+    end,
+    issue,
+    reason,
+    rule,
+    suggestion="",
+    source="rule",
+    alternatives=None,
+):
     """Build one finding as a plain dictionary (the id and status are added later by review_service)."""
     return {
         "category": category,
@@ -20,6 +31,7 @@ def make_finding(category, text, start, end, issue, reason, rule, suggestion="",
         "reason": reason,
         "rule": rule,
         "suggestion": suggestion,
+        "alternatives": alternatives or [],
         "source": source,
     }
 
@@ -67,16 +79,17 @@ def remove_overlaps(findings):
 
 
 def apply_accepted(text, findings):
-    """Return the text with every ACCEPTED suggestion swapped in.
+    """Return the text with every ACCEPTED suggestion/replacement swapped in.
     Works from the end of the text backwards so earlier positions stay correct."""
     result = text
     usable = [
         f for f in findings
         if f.get("status") == "accepted"
-        and f.get("suggestion")
+        and (f.get("replacement") or f.get("suggestion"))
         and isinstance(f.get("start"), int)
         and isinstance(f.get("end"), int)
     ]
     for f in sorted(usable, key=lambda f: f["start"], reverse=True):
-        result = result[: f["start"]] + f["suggestion"] + result[f["end"]:]
+        replacement = f.get("replacement") or f.get("suggestion")
+        result = result[: f["start"]] + replacement + result[f["end"]:]
     return result

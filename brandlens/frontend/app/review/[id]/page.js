@@ -4,6 +4,7 @@
 
 "use client";
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { getAuth } from "../../../lib/auth";
 import { getReview, runReview, sendToReviewer, setFindingStatus } from "../../../lib/api";
@@ -52,11 +53,11 @@ export default function ReviewPage() {
     setBusy(false);
   }
 
-  // Accept or reject one finding; the backend sends back the updated review.
-  async function decide(findingId, status) {
+  // Accept or reject one finding; accepts an optional alternative replacement.
+  async function decide(findingId, status, replacement) {
     setError("");
     try {
-      setReview(await setFindingStatus(id, findingId, status));
+      setReview(await setFindingStatus(id, findingId, status, replacement));
     } catch (e) {
       setError(e.message);
     }
@@ -103,11 +104,29 @@ export default function ReviewPage() {
 
   return (
     <div>
-      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", marginBottom: 12 }}>
         <h2 style={{ margin: 0 }}>{review.title}</h2>
+        <span
+          className="badge"
+          style={{
+            background: "#e0e7ff",
+            color: "#3730a3",
+            fontSize: 13,
+            padding: "4px 10px",
+            fontWeight: 600,
+          }}
+        >
+          {review.type}
+        </span>
         <StatusBadge status={review.status} />
+        <Link
+          href={`/audit/${id}`}
+          className="btn secondary"
+          style={{ marginLeft: "auto", fontSize: 13, padding: "6px 12px", textDecoration: "none" }}
+        >
+          View Audit Trail
+        </Link>
       </div>
-      <div style={{ color: "#555", margin: "6px 0 16px" }}>{review.type}</div>
 
       {review.status === "changes_requested" && (
         <div className="card" style={{ borderLeft: "4px solid #c0392b" }}>
@@ -122,9 +141,14 @@ export default function ReviewPage() {
         <div className="card">This content has been sent to the reviewer and is waiting for a decision.</div>
       )}
       {review.status === "approved" && (
-        <div className="card" style={{ borderLeft: "4px solid #065f46" }}>
-          Approved{review.reviewed_by ? ` by ${review.reviewed_by}` : ""}.
-          {review.comment && <> Comment: {review.comment}</>}
+        <div className="card" style={{ borderLeft: "4px solid #065f46", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10 }}>
+          <div>
+            <strong>Approved{review.reviewed_by ? ` by ${review.reviewed_by}` : ""}.</strong>
+            {review.comment && <span style={{ marginLeft: 6 }}>Comment: {review.comment}</span>}
+          </div>
+          <Link href={`/audit/${id}`} className="btn" style={{ fontSize: 13, textDecoration: "none" }}>
+            View Certified Audit Trail
+          </Link>
         </div>
       )}
 
@@ -152,7 +176,8 @@ export default function ReviewPage() {
         <FindingCard
           key={f.id}
           finding={f}
-          onAccept={editable ? () => decide(f.id, "accepted") : undefined}
+          contentId={id}
+          onAccept={editable ? (rep) => decide(f.id, "accepted", rep) : undefined}
           onReject={editable ? () => decide(f.id, "rejected") : undefined}
         />
       ))}

@@ -1,15 +1,17 @@
 # content.py
 # Creating and reading content (blog, email, social post...). Reviewing it happens in routes/review.py.
 
+import hashlib
 from typing import List
+from uuid import uuid4
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
-from uuid import uuid4
 
 from app.config import MAX_UPLOAD_MB
 from app.database import contents, strip_id
 from app.routes.auth import get_current_user, require_role
 from app.schemas.content import ContentCreate, ContentOut, ExtractedText
+from app.services import audit_service
 from app.services.review_service import now
 from app.services.text_extractor import ExtractError, extract_text
 
@@ -36,6 +38,21 @@ def create_content(body: ContentCreate, user=Depends(require_role("creator"))):
         "updated_at": stamp,
     }
     contents.insert_one(doc)
+
+    # Feature 3: Log content_created event into audit trail
+    text_hash = hashlib.sha256(text.encode("utf-8")).hexdigest()
+    audit_service.log_event(
+        content_id=doc["id"],
+        action="content_created",
+        actor=user,
+        details={
+            "title": title,
+            "type": body.type,
+            "char_count": len(text),
+            "text_hash": text_hash,
+        },
+    )
+
     return strip_id(doc)
 
 
