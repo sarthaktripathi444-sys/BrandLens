@@ -4,6 +4,7 @@
 
 from datetime import datetime, timezone
 from app.services import llm_client # new change
+from app.services.channel_checker import check_channel
 from app.services.claim_checker import check_claims
 from app.services.fact_checker import check_facts
 from app.services.suggestion_engine import apply_accepted, remove_overlaps
@@ -51,6 +52,7 @@ def run_checks(text, rulebook, content_type="Blog"):
     found += _safely("claims", failed, check_claims, text, rulebook.get("claims_policy", ""))
     found += _safely("terminology", failed, check_terminology, text, rulebook.get("restricted_terms", []))
     found += _safely("tone", failed, check_tone, text, rulebook.get("tone", []))
+    found += _safely("channel", failed, check_channel, text, content_type, rulebook.get("channel_rules", {}))
 
     findings = remove_overlaps(found)
     for number, finding in enumerate(findings, start=1):
