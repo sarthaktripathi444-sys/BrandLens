@@ -9,6 +9,7 @@ from uuid import uuid4
 from app.config import MAX_UPLOAD_MB
 from app.database import contents, strip_id
 from app.routes.auth import get_current_user, require_role
+from app.services.audit_service import hash_text, log_event
 from app.schemas.content import ContentCreate, ContentOut, ExtractedText
 from app.services.review_service import now
 from app.services.text_extractor import ExtractError, extract_text
@@ -36,6 +37,11 @@ def create_content(body: ContentCreate, user=Depends(require_role("creator"))):
         "updated_at": stamp,
     }
     contents.insert_one(doc)
+    log_event(doc["id"], "content_created", user, {
+        "title": title,
+        "type": body.type,
+        "text_hash": hash_text(text),
+    })
     return strip_id(doc)
 
 
