@@ -73,10 +73,11 @@ def apply_accepted(text, findings):
     usable = [
         f for f in findings
         if f.get("status") == "accepted"
-        and f.get("suggestion")
+        and (f.get("replacement") or f.get("suggestion"))
         and isinstance(f.get("start"), int)
         and isinstance(f.get("end"), int)
     ]
     for f in sorted(usable, key=lambda f: f["start"], reverse=True):
-        result = result[: f["start"]] + f["suggestion"] + result[f["end"]:]
+                wording = f.get("replacement") or f["suggestion"]
+                result = result[: f["start"]] + wording + result[f["end"]:]
     return result
