@@ -73,7 +73,11 @@ def log_event(
     # Find the last event for this content to determine seq and prev_hash
     last_event = audit_events.find_one({"content_id": content_id}, sort=[("seq", -1)])
     if last_event:
-        seq = last_event.get("seq", 0) + 1
+        raw_seq = last_event.get("seq", 0)
+        try:
+            seq = int(raw_seq) + 1
+        except (ValueError, TypeError):
+            seq = 1
         prev_hash = last_event.get("hash", "0" * 64)
     else:
         seq = 1

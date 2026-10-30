@@ -27,8 +27,26 @@ def _active():
 @router.post("", response_model=RulebookOut)
 def save_rulebook(body: Rulebook, user=Depends(require_role("manager"))):
     """Save a new rule book and make it the active one (older ones are kept but switched off)."""
-    last = rulebooks.find_one(sort=[("version", -1)])
-    next_version = (last.get("version", 0) if last and "version" in last else 0) + 1
+    import re
+
+    highest_v = 0
+    for doc in rulebooks.find({}, {"version": 1}):
+        raw_v = doc.get("version")
+        if isinstance(raw_v, int):
+            if raw_v > highest_v:
+                highest_v = raw_v
+        elif isinstance(raw_v, str):
+            m = re.search(r"\d+", raw_v)
+            if m:
+                val = int(m.group(0))
+                if val > highest_v:
+                    highest_v = val
+        elif isinstance(raw_v, float):
+            val = int(raw_v)
+            if val > highest_v:
+                highest_v = val
+
+    next_version = highest_v + 1
     new_id = uuid4().hex
 
     rulebooks.update_many({}, {"$set": {"active": False}})
