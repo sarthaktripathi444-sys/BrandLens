@@ -80,3 +80,36 @@ def check_channel(text, content_type, channel_rules):
             ))
 
     return findings
+
+
+def channel_guidance(content_type, channel_rules):
+    """One plain-English paragraph describing the channel rules, for the AI prompts."""
+    rule = (channel_rules or {}).get(content_type)
+    if not isinstance(rule, dict):
+        return "No special channel rules."
+    parts = []
+    if rule.get("tone_notes"):
+        parts.append(rule["tone_notes"])
+    if rule.get("max_chars"):
+        parts.append(f"Maximum {rule['max_chars']} characters in total.")
+    if rule.get("max_subject_chars"):
+        parts.append(f"Subject line at most {rule['max_subject_chars']} characters.")
+    if rule.get("allow_exclamation") is False:
+        parts.append("No exclamation marks.")
+    elif rule.get("allow_exclamation") is True:
+        parts.append("At most one exclamation mark.")
+    if rule.get("max_hashtags") is not None:
+        parts.append(f"At most {rule['max_hashtags']} hashtags.")
+    if rule.get("required_disclaimer"):
+        parts.append(f"Must include: {rule['required_disclaimer']}")
+    return " ".join(parts) or "No special channel rules."
+
+
+def add_alternatives(finding, extras=()):
+    """Set finding['alternatives'] = the suggestion first, then the extras (no empties, no duplicates)."""
+    options = []
+    for option in [finding.get("suggestion", "")] + list(extras or []):
+        if isinstance(option, str) and option.strip() and option not in options:
+            options.append(option)
+    finding["alternatives"] = options[:4]
+    return finding
