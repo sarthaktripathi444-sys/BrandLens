@@ -5,8 +5,8 @@
 import re
 
 # When two findings cover the same words, the one with the LOWER number wins.
-# (Facts and claims are more serious than a word swap, and a word swap is more exact than a tone note.)
-PRIORITY = {"fact": 0, "claim": 1, "terminology": 2, "tone": 3, "channel": 4}
+# (Facts are highest priority; explicit brand terminology rules take precedence over broad claims and tone.)
+PRIORITY = {"fact": 0, "terminology": 1, "claim": 2, "tone": 3, "channel": 4}
 
 
 def make_finding(

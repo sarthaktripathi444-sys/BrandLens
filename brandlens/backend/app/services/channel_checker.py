@@ -152,13 +152,14 @@ def check_channel(
             findings.append(
                 make_finding(
                     category="channel",
-                    text=text[-20:] if len(text) >= 20 else text,
-                    start=max(0, len(text) - 20),
+                    text="(Missing disclaimer)",
+                    start=len(text),
                     end=len(text),
                     issue=f"Missing mandatory disclaimer for {content_type}",
                     reason=f"{content_type} content is legally required to include: \"{required_disclaimer}\"",
                     rule=f"Mandatory disclaimer: \"{required_disclaimer}\"",
-                    suggestion=f"{text.rstrip()}\n\n{required_disclaimer}",
+                    suggestion=f"\n\n{required_disclaimer}",
+                    alternatives=[f"\n\n* {required_disclaimer}", f"\n\n[{required_disclaimer}]"],
                     source="rule",
                 )
             )

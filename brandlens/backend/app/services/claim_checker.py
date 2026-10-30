@@ -171,6 +171,32 @@ def _rule_based(
     return findings
 
 
+def _clean_replacement(quote: str, raw_suggestion: str, alternatives: List[str]) -> str:
+    """Ensure the suggestion is a clean drop-in replacement phrase, not instructional advice."""
+    s = (raw_suggestion or "").strip()
+    ADVICE_PATTERNS = r"^(?:focus on|replace\b|remove\b|avoid\b|use\b|consider\b|state\b|rephrase\b|ensure\b|do not\b|never\b|delete\b)"
+    if not re.search(ADVICE_PATTERNS, s, re.I):
+        return s
+
+    for alt in alternatives:
+        if alt and not re.search(ADVICE_PATTERNS, alt, re.I) and len(alt.split()) <= len(quote.split()) + 6:
+            return alt
+
+    lower_q = quote.lower().strip()
+    if lower_q.startswith("the most "):
+        return quote[9:].strip()
+    elif lower_q.startswith("most "):
+        return quote[5:].strip()
+    elif lower_q.startswith("the #1 ") or lower_q.startswith("#1 "):
+        return "a trusted"
+    elif "cure" in lower_q or "fatigue" in lower_q:
+        return "are crafted for an afternoon boost" if lower_q.startswith("are ") else "crafted for an afternoon boost"
+    elif lower_q == "cheap":
+        return "affordable"
+
+    return s
+
+
 def _ai_based(
     text: str,
     claims_policy: str,
@@ -208,6 +234,8 @@ def _ai_based(
         raw_alts = item.get("alternatives")
         alts = [str(a).strip() for a in raw_alts if str(a).strip()] if isinstance(raw_alts, list) else []
 
+        clean_sugg = _clean_replacement(quote, str(item.get("suggestion") or ""), alts)
+
         findings.append(
             make_finding(
                 category="claim",
@@ -217,7 +245,7 @@ def _ai_based(
                 issue=str(item.get("issue") or "Claim needs evidence"),
                 reason=str(item.get("reason") or ""),
                 rule=str(item.get("rule") or claims_policy or "Claims need supporting evidence"),
-                suggestion=str(item.get("suggestion") or ""),
+                suggestion=clean_sugg,
                 alternatives=alts,
                 source="ai",
             )

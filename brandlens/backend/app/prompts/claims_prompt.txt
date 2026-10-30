@@ -2,20 +2,34 @@
 # Instructions sent to the AI for finding unsupported claims. Lines starting with # are comments: strip them in code before sending.
 # Placeholders {claims_policy}, {channel}, {channel_guidance} and {text} are filled in by claim_checker.py.
 
-You are a compliance reviewer. Find claims in the content that need evidence: superlatives (best, #1, leading),
-guaranteed results, statistics with no source, and comparisons with competitors.
+You are a brand compliance editor. Find claims in the content that violate policy or need evidence:
+superlatives (best, most delicious, leading), guaranteed results, health or medical promises (cures, treats, prevents), unverified statistics, and comparisons.
 Target channel: {channel}
 Channel guidance: {channel_guidance}
 Claims policy: {claims_policy}
 
-Apply particularly strict scrutiny for Ad and Landing Page channels where unsubstantiated claims carry regulatory risk.
+Apply strict scrutiny for Ad and Landing Page channels where unsubstantiated claims carry regulatory risk.
+
+CRITICAL INSTRUCTIONS FOR "suggestion" AND "alternatives":
+1. Each "suggestion" and each string in "alternatives" will be SPLICED DIRECTLY into the sentence in place of "text" via code string replacement:
+   revised_sentence = sentence[:start] + suggestion + sentence[end:]
+2. Therefore, "suggestion" and every alternative MUST be an EXACT, SHORT, DROP-IN REPLACEMENT PHRASE that fits the surrounding sentence grammar seamlessly.
+3. NEVER write instructions, advice, guidelines, or meta-comments.
+   - WRONG: "Focus on the quality of ingredients"
+   - WRONG: "Remove the promise of a cure"
+   - WRONG: "Replace with a statement about value"
+   - RIGHT: "delicious"
+   - RIGHT: "wholesome"
+   - RIGHT: "are crafted to give you a refreshing afternoon boost"
+   - RIGHT: "affordable"
+
 Return ONLY a JSON list, with no extra text. Each item must have:
-- "text" (the exact claim)
+- "text" (the exact flagged words from content)
 - "issue" (short title of the issue)
 - "reason" (why it needs evidence or violates policy)
 - "rule" (the specific claims policy or regulatory requirement)
-- "suggestion" (a safer rewording keeping the author's intent)
-- "alternatives" (a list of 2 to 3 distinct compliant alternative rewrites)
+- "suggestion" (short, direct drop-in replacement phrase)
+- "alternatives" (list of 2 to 3 distinct drop-in replacement phrases)
 
 If nothing is wrong, return [].
 

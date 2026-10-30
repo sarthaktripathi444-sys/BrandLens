@@ -3,6 +3,7 @@
 # Generates on-demand compliant alternative rewrites for flagged findings,
 # verifies each against terminology & claims policies, and filters out non-compliant candidates.
 
+import re
 from typing import Any, Dict, List
 
 from app.services import llm_client
@@ -115,9 +116,10 @@ def generate_alternatives(
     claims_policy = rulebook.get("claims_policy", "")
 
     seen = {flagged_text.strip().lower()}
+    ADVICE_PATTERNS = r"^(?:focus on|replace\b|remove\b|avoid\b|use\b|consider\b|state\b|rephrase\b|ensure\b|do not\b|never\b|delete\b)"
     for cand in raw_candidates:
         cand_clean = cand.strip()
-        if not cand_clean or cand_clean.lower() in seen:
+        if not cand_clean or cand_clean.lower() in seen or re.search(ADVICE_PATTERNS, cand_clean, re.I):
             continue
 
         # Check against restricted terms

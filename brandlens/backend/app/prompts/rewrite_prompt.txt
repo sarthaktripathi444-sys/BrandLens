@@ -12,10 +12,10 @@ Flagged text: "{text}"
 Surrounding context:
 "{context}"
 
-Requirements:
-1. Provide exactly 3 diverse, professional alternative phrasings that replace the flagged text cleanly in context.
-2. Every alternative MUST strictly adhere to the brand rule and eliminate the flagged issue.
-3. Keep the alternatives natural and appropriate for {channel}.
+CRITICAL REQUIREMENTS:
+1. Every alternative MUST be an EXACT, GRAMMATICALLY SEAMLESS DROP-IN REPLACEMENT for "{text}" that fits naturally into the surrounding sentence when spliced in.
+2. NEVER write instructions, guidelines, meta-advice, or notes (NEVER write "Focus on...", "Replace with...", "Remove...", "Avoid...").
+3. Output ONLY the literal replacement phrases.
 
-Return ONLY a JSON list of 3 strings, for example:
-["Alternative 1", "Alternative 2", "Alternative 3"]
+Return ONLY a JSON list of 3 replacement strings, for example:
+["alternative phrase 1", "alternative phrase 2", "alternative phrase 3"]
