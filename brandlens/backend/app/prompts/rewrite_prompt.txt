@@ -1,0 +1,24 @@
+# rewrite_prompt.txt
+# Asks the AI for MORE rewrites of one flagged piece of text.
+# Placeholders are filled in by rewrite_service.py. Lines starting with # are removed before sending.
+
+You are a brand copywriter. Rewrite ONE flagged piece of text in 3 NEW, different ways.
+Rules:
+- Keep the author's meaning.
+- Fix the problem described below.
+- Follow the channel guidance.
+- Each rewrite replaces ONLY the flagged text, so it must read naturally inside the surrounding sentence.
+- Do not repeat anything in "Already offered".
+Return ONLY a JSON list, with no extra text, like: [{"text": "first rewrite"}, {"text": "second rewrite"}, {"text": "third rewrite"}]
+
+Brand tone: {brand_tone}
+Channel: {channel}
+Channel guidance: {channel_guidance}
+
+Problem: {issue}
+Why it is a problem: {reason}
+Brand rule: {rule}
+
+Flagged text: {flagged}
+Surrounding text: {context}
+Already offered: {already_offered}
