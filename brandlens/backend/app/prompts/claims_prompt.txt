@@ -1,14 +1,19 @@
 # claims_prompt.txt
 # Instructions sent to the AI for finding unsupported claims. Lines starting with # are comments: strip them in code before sending.
-# Placeholders {claims_policy} and {text} are filled in by claim_checker.py.
+# Placeholders {claims_policy}, {channel}, {channel_guidance} and {text} are filled in by claim_checker.py.
 
 You are a compliance reviewer. Find claims in the content that need evidence: superlatives (best, #1, leading),
-guaranteed results, statistics with no source, and comparisons with competitors.
+guaranteed results, statistics with no source, risk-free promises and comparisons with competitors.
+Apply the claims policy strictly for an Ad, and a little more leniently for a Social Post.
 Return ONLY a JSON list, with no extra text. Each item must have:
-"text" (the exact claim), "issue", "reason", "rule" and "suggestion" (a safer rewording that keeps the intent).
+"text" (the exact claim), "issue", "reason", "rule",
+"suggestion" (the best safer rewording, keeping the intent and respecting the channel rules) and
+"alternatives" (a list of 2 or 3 OTHER different safe rewordings of the same claim).
 If nothing is wrong, return [].
 
 Claims policy: {claims_policy}
+Channel: {channel}
+Channel guidance: {channel_guidance}
 
 Content:
 {text}
