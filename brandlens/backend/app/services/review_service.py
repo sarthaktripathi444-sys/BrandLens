@@ -48,11 +48,12 @@ def run_checks(text, rulebook, content_type="Blog"):
     meta = {"ai_used": bool, "checks_failed": [names]}"""
     failed = []
     found = []
+    channel_rules = rulebook.get("channel_rules", {})
     found += _safely("fact", failed, check_facts, text, rulebook.get("facts", []))
-    found += _safely("claims", failed, check_claims, text, rulebook.get("claims_policy", ""))
+    found += _safely("claims", failed, check_claims, text, rulebook.get("claims_policy", ""), content_type, channel_rules)
     found += _safely("terminology", failed, check_terminology, text, rulebook.get("restricted_terms", []))
-    found += _safely("tone", failed, check_tone, text, rulebook.get("tone", []))
-    found += _safely("channel", failed, check_channel, text, content_type, rulebook.get("channel_rules", {}))
+    found += _safely("tone", failed, check_tone, text, rulebook.get("tone", []), content_type, channel_rules)
+    found += _safely("channel", failed, check_channel, text, content_type, channel_rules)
 
     findings = remove_overlaps(found)
     for number, finding in enumerate(findings, start=1):
