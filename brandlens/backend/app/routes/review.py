@@ -15,6 +15,7 @@ from app.database import contents, reviews, rulebooks
 from app.routes.auth import get_current_user, require_role
 from app.schemas.review import DecisionIn, FindingStatusIn, ReviewOut, RunReviewIn
 from app.services import review_service as svc
+from app.services import llm_client, rewrite_service
 from app.services.audit_service import hash_text, log_event
 
 router = APIRouter(prefix="/review", tags=["review"])
@@ -132,7 +133,7 @@ def update_finding(
     suggestion = finding.get("suggestion")
     category = finding.get("category")
 
-    svc.set_finding_status(review, finding_id, body.status)
+    svc.set_finding_status(review, finding_id, body.status, body.replacement)
     reviews.update_one({"content_id": content_id}, {"$set": {"findings": review["findings"]}})
 
     log_event(content_id, "finding_decided", user, {
@@ -145,7 +146,27 @@ def update_finding(
         "replacement": body.replacement,
     })
     return _response(content, review)
+@router.post("/{content_id}/findings/{finding_id}/alternatives")
+def more_alternatives(content_id: str, finding_id: str, user=Depends(require_role("creator"))):
+    """Ask the AI for more rewrites of one finding. Each is re-checked against the rules."""
+    content = _get_content(content_id)
+    review = _get_review(content_id)
+    svc.check_can_edit_review(content)
 
+    finding = next((f for f in review["findings"] if f.get("id") == finding_id), None)
+    if not finding:
+        raise svc.WorkflowError("That issue does not exist in this review.", 404)
+
+    rulebook = rulebooks.find_one({"active": True}, {"_id": 0}) or {}
+    try:
+        fresh = rewrite_service.suggest_more(finding, content["text"], rulebook, content["type"])
+    except llm_client.LLMError as error:
+        print(f"[review] more rewrites failed: {error}")
+        raise svc.WorkflowError("Could not get more rewrites right now. Please try again in a moment.", 503)
+
+    finding["alternatives"] = (finding.get("alternatives") or []) + fresh
+    reviews.update_one({"content_id": content_id}, {"$set": {"findings": review["findings"]}})
+    return {"alternatives": finding["alternatives"], "added": len(fresh)}
 
 @router.post("/{content_id}/send", response_model=ReviewOut)
 def send_to_reviewer(content_id: str, user=Depends(require_role("creator"))):
